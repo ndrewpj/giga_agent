@@ -19,6 +19,7 @@ import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
 import { GraphState } from "../interfaces.ts";
 import MessageEditor from "./MessageEditor.tsx";
 import { ChevronLeft, ChevronRight, Pencil, RefreshCw } from "lucide-react";
+import {useSelectedAttachments} from "../hooks/SelectedAttachmentsContext.tsx";
 
 const MessageContainer = styled.div<{
   type: "function" | "ai" | "human" | "tool" | "system" | "remove";
@@ -148,6 +149,13 @@ function BranchSwitcher({
   );
 }
 
+const SelectedCounter = styled.div`
+  margin-top: 6px;
+  color: #9e9e9e;
+  font-size: 12px;
+  pointer-events: none;
+`;
+
 interface MessageProps {
   message: Message_;
   onWrite: () => void;
@@ -167,6 +175,7 @@ const Message: React.FC<MessageProps> = ({
   const displayedRef = useRef<string>(""); // накапливаемый текст
   const [displayed, setDisplayed] = useState<string>("");
   const [edit, setEdit] = useState<boolean>(false);
+  const { setSelectedAttachments, clear} = useSelectedAttachments();
 
   const idxRef = useRef<number>(0);
 
@@ -365,7 +374,10 @@ const Message: React.FC<MessageProps> = ({
       {edit ? (
         <MessageEditor
           message={message}
-          onCancel={() => setEdit(false)}
+          onCancel={() => {
+            setEdit(false)
+            clear()
+          }}
           thread={thread}
         />
       ) : (
@@ -407,6 +419,15 @@ const Message: React.FC<MessageProps> = ({
                     </ActionSection>
                   ))
               }
+              {
+                //@ts-ignore
+                message.additional_kwargs && message.additional_kwargs.selected && Object.keys(message.additional_kwargs.selected).length > 0 ? (
+                  <SelectedCounter>Выбраны вложения: {
+                    //@ts-ignore
+                     Object.keys(message.additional_kwargs.selected).length
+                    }
+                  </SelectedCounter>
+              ) : <></>}
             </MessageBubble>
           </MessageContainer>
           {
@@ -425,7 +446,15 @@ const Message: React.FC<MessageProps> = ({
             {message.type === "human" && (
               <MessageButton
                 disabled={!thread || thread.isLoading}
-                onClick={() => setEdit(true)}
+                onClick={() => {
+                  setEdit(true)
+                  // @ts-ignore
+                  if (message.additional_kwargs && message.additional_kwargs.selected && Object.keys(message.additional_kwargs.selected).length > 0)
+                    // @ts-ignore
+                    setSelectedAttachments(message.additional_kwargs.selected)
+                  else
+                    clear()
+                }}
               >
                 <Pencil size={16} />
               </MessageButton>

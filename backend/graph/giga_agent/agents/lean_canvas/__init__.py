@@ -497,7 +497,7 @@ async def lean_canvas(
             "configurable": {
                 "thread_id": thread_id,
                 "need_interrupt": False,
-                "skip_search": False,
+                "skip_search": False if os.getenv("TAVILY_API_KEY") else True,
             }
         },
     ):

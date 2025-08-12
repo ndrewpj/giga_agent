@@ -108,9 +108,19 @@ async def agent(state: AgentState):
             if len(file_prompt)
             else ""
         )
+        selected = state["messages"][-1].additional_kwargs.get("selected", {})
+        selected_items = []
+        for key, value in selected.items():
+            selected_items.append(f"""![{value}](graph:{key})""")
+        selected_prompt = ""
+        if selected_items:
+            selected_items = "\n".join(selected_items)
+            selected_prompt = (
+                f"Пользователь указал на следующие вложения: \n{selected_items}"
+            )
         state["messages"][
             -1
-        ].content = f"<task>{user_input}</task> Активно планируй и следуй своему плану! Действуй по простым шагам!{generate_user_info(state)}\n{file_prompt}\nСледующий шаг: "
+        ].content = f"<task>{user_input}</task> Активно планируй и следуй своему плану! Действуй по простым шагам!{generate_user_info(state)}\n{file_prompt}\n{selected_prompt}\nСледующий шаг: "
     message = await ch.ainvoke({"messages": state["messages"]})
     message.additional_kwargs.pop("function_call", None)
     message.additional_kwargs["rendered"] = True
@@ -149,7 +159,7 @@ async def tool_call(
             action["args"]["code"] = get_code_arg(state["messages"][-1].content)
         else:
             # На случай если гига отправить в аргумент ```python(.+)``` строку
-            code_arg = get_code_arg(action["args"]["code"])
+            code_arg = get_code_arg(action["args"].get("code"))
             if code_arg:
                 action["args"]["code"] = code_arg
         if "code" not in action["args"] or not action["args"]["code"]:

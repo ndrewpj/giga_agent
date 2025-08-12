@@ -25,6 +25,7 @@ from giga_agent.agents.landing_agent.nodes.plan import plan_node
 from giga_agent.agents.landing_agent.tools import plan, image, coder, done
 from giga_agent.agents.landing_agent.prompts.ru import AGENT_PROMPT
 from giga_agent.utils.env import load_project_env
+from giga_agent.utils.messages import filter_tool_messages
 
 load_project_env()
 
@@ -35,7 +36,8 @@ async def agent(state: LandingState, config: RunnableConfig):
     )
     chain = prompt | llm.bind_tools([plan, image, coder, done])
     resp = await chain.ainvoke(
-        {"messages": state.get("agent_messages", [])}, config={"callbacks": []}
+        {"messages": filter_tool_messages(state.get("agent_messages", []))},
+        config={"callbacks": []},
     )
     if config["configurable"].get("print_messages", False):
         resp.pretty_print()
@@ -129,9 +131,6 @@ async def create_landing(
         thread = await client.threads.create()
         thread_id = thread["thread_id"]
     result_state = {}
-    last_mes = state["messages"][-1].model_copy()
-    last_mes.tool_calls = None
-    last_mes.additional_kwargs["function_call"] = None
     async for chunk in client.runs.stream(
         thread_id=thread_id,
         assistant_id="landing",
@@ -146,7 +145,16 @@ async def create_landing(
             "task": task
             + f"\nДополнительная информация: {state['messages'][-1].content}",
             "html": "",
-            "plan_messages": state["messages"][:-1] + [last_mes],
+            "plan_messages": state["messages"][:]
+            + [
+                ToolMessage(
+                    tool_call_id=str(uuid.uuid4()),
+                    content=json.dumps(
+                        {"message": "Приступаю к работе!"},
+                        ensure_ascii=False,
+                    ),
+                )
+            ],
         },
         stream_mode=["values", "updates"],
         on_disconnect="cancel",

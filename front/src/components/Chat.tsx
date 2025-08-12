@@ -9,6 +9,9 @@ import { FileData, GraphState } from "../interfaces";
 import { HumanMessage } from "@langchain/langgraph-sdk";
 import { useNavigate, useParams } from "react-router-dom";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
+import {
+  SelectedAttachmentsProvider, useSelectedAttachments,
+} from "../hooks/SelectedAttachmentsContext.tsx";
 
 const ChatWrapper = styled.div`
   width: 100%;
@@ -46,6 +49,7 @@ const ChatContainer = styled.div`
 const Chat: React.FC = () => {
   const navigate = useNavigate();
   const { threadId } = useParams<{ threadId?: string }>();
+  const { selected, clear } = useSelectedAttachments();
   const thread = useStream<GraphState>({
     apiUrl: `${window.location.protocol}//${window.location.host}/graph`,
     assistantId: "chat",
@@ -88,8 +92,10 @@ const Chat: React.FC = () => {
         additional_kwargs: {
           user_input: content,
           files: files,
+          selected: selected
         },
       } as HumanMessage;
+      clear();
 
       thread.submit(
         { messages: [newMessage] },
@@ -104,7 +110,7 @@ const Chat: React.FC = () => {
         },
       );
     },
-    [thread],
+    [thread, selected, clear],
   );
 
   const handleContinue = async (data: any) => {
@@ -128,19 +134,19 @@ const Chat: React.FC = () => {
 
   return (
     <ChatWrapper>
-      <ChatContainer>
-        <MessageList
-          messages={stableMessages ?? []}
-          thread={thread}
-          progressAgent={agentProgress}
-        />
-        <InputArea
-          onSend={handleSendMessage}
-          onContinue={handleContinue}
-          isLoading={thread.isLoading}
-          interrupt={thread.interrupt}
-        />
-      </ChatContainer>
+        <ChatContainer>
+          <MessageList
+            messages={stableMessages ?? []}
+            thread={thread}
+            progressAgent={agentProgress}
+          />
+          <InputArea
+            onSend={handleSendMessage}
+            onContinue={handleContinue}
+            isLoading={thread.isLoading}
+            interrupt={thread.interrupt}
+          />
+        </ChatContainer>
     </ChatWrapper>
   );
 };

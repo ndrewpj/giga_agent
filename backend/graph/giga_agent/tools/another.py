@@ -183,7 +183,7 @@ async def generate_image(theme: str):
     uploaded_file = await llm.aupload_file(("image.png", base64.b64decode(image_data)))
     return {
         "image_description": i["description"],
-        "message": f'В результате выполнения было сгенерировано изображение {uploaded_file.id_}. Покажи его пользователю через "![{theme}](graph:{uploaded_file.id_})"',
+        "message": f'В результате выполнения было сгенерировано изображение {uploaded_file.id_}. Покажи его пользователю через "![описание изображения](graph:{uploaded_file.id_})"',
         "giga_attachments": [
             {
                 "type": "image/png",

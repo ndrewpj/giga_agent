@@ -16,11 +16,13 @@ import { HumanMessage, Message } from "@langchain/langgraph-sdk";
 import OverlayPortal from "./OverlayPortal.tsx";
 // @ts-ignore
 import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
+import {useSelectedAttachments} from "../hooks/SelectedAttachmentsContext.tsx";
 
 const InputContainer = styled.div`
   padding: 16px;
   background-color: #2d2d2d;
   border-radius: 8px;
+  position: relative;
   @media print {
     display: none;
   }
@@ -30,6 +32,7 @@ const InputRow = styled.div`
   display: flex;
   align-items: flex-end;
   gap: 8px;
+  position: relative;
 `;
 
 const TextArea = styled.textarea`
@@ -100,14 +103,19 @@ const CancelButton = styled(IconButton)`
   }
 `;
 
-function uuidv4() {
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
-    (
-      +c ^
-      (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))
-    ).toString(16),
-  );
-}
+const SelectedCounter = styled.div<{ $visible: boolean }>`
+  margin-top: 6px;
+  color: #9e9e9e;
+  font-size: 12px;
+  position: absolute;
+  bottom: 8px;
+  left: 80px;
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transform: translateY(${({ $visible }) => ($visible ? 0 : 4)}px);
+  transition: ${({ $visible }) =>
+    $visible ? "opacity 100ms ease, transform 100ms ease" : "none"};
+  pointer-events: none;
+`;
 
 interface MessageEditorProps {
   message: Message;
@@ -133,6 +141,8 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
     getAllFileData,
   } = useFileUpload();
   const [messageText, setMessageText] = useState("");
+  const { selected } = useSelectedAttachments();
+  const selectedCount = Object.keys(selected).length;
 
   useEffect(() => {
     // @ts-ignore
@@ -250,6 +260,7 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
             Отправить
           </SendButton>
         </InputRow>
+        <SelectedCounter $visible={selectedCount > 0}>Выбрано вложений: {selectedCount}</SelectedCounter>
       </InputContainer>
       {items.length > 0 && (
         <AttachmentsContainer>

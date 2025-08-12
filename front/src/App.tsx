@@ -7,6 +7,7 @@ import Sidebar from "./components/Sidebar.tsx";
 import DemoSettings from "./components/DemoSettings.tsx";
 import { DemoItemsProvider, useDemoItems } from "./hooks/DemoItemsProvider.tsx";
 import DemoChat from "./components/DemoChat.tsx";
+import {SelectedAttachmentsProvider} from "./hooks/SelectedAttachmentsContext.tsx";
 
 const AppContainer = styled.div`
   display: flex;
@@ -34,12 +35,12 @@ const InnerApp: React.FC = () => {
   return (
     <Sidebar onNewChat={handleNavigateAndReload}>
       <Routes>
-        <Route path="/" element={<Chat key={reloadKey} />} />
-        <Route path="/threads/:threadId" element={<Chat key={reloadKey} />} />
+        <Route path="/" element={<SelectedAttachmentsProvider key={reloadKey}><Chat/></SelectedAttachmentsProvider>} />
+        <Route path="/threads/:threadId" element={<SelectedAttachmentsProvider key={reloadKey}><Chat/></SelectedAttachmentsProvider>} />
         <Route
           path="/demo/:demoIndex"
           element={
-            <DemoChat key={reloadKey} onContinue={handleNavigateAndReload} />
+            <SelectedAttachmentsProvider key={reloadKey}><DemoChat onContinue={handleNavigateAndReload} /></SelectedAttachmentsProvider>
           }
         />
         <Route path="/demo/settings" element={<DemoSettings />} />

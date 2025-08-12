@@ -65,7 +65,7 @@ const HTMLPage: React.FC<HTMLPageProps> = ({ id, alt, fullScreen = false }) => {
       <StyledIframe
         title={alt || `iframe-${id}`}
         src={`/graph/html/${id}/`}
-        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-modals"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-modals allow-forms"
         scale={scale}
 
       />

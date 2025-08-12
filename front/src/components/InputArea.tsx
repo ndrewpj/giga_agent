@@ -4,6 +4,7 @@ import { Interrupt } from "@langchain/langgraph-sdk";
 import { Check, Paperclip, Send, X } from "lucide-react";
 import { useSettings } from "./Settings.tsx";
 import { useFileUpload, UploadedFile } from "../hooks/useFileUploads";
+import { useSelectedAttachments } from "../hooks/SelectedAttachmentsContext.tsx";
 import {
   AttachmentBubble,
   AttachmentsContainer,
@@ -88,6 +89,20 @@ const IconButton = styled.button`
   }
 `;
 
+const SelectedCounter = styled.div<{ $visible: boolean }>`
+  margin-top: 6px;
+  color: #9e9e9e;
+  font-size: 12px;
+  position: absolute;
+  bottom: 8px;
+  left: 75px;
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transform: translateY(${({ $visible }) => ($visible ? 0 : 4)}px);
+  transition: ${({ $visible }) =>
+    $visible ? "opacity 100ms ease, transform 100ms ease" : "none"};
+  pointer-events: none;
+`;
+
 // Зелёная кнопка ✔️
 const ApproveButton = styled(IconButton)`
   background-color: #28a745;
@@ -136,6 +151,8 @@ const InputArea: React.FC<InputAreaProps> = ({
   const textRef = useRef<HTMLTextAreaElement>(null);
   const { settings } = useSettings();
   const { uploads, uploadFiles, removeUpload, resetUploads } = useFileUpload();
+  const { selected } = useSelectedAttachments();
+  const selectedCount = Object.keys(selected).length;
 
   const isUploading = uploads.some((u) => u.progress < 100 && !u.error);
 
@@ -291,6 +308,10 @@ const InputArea: React.FC<InputAreaProps> = ({
           ))}
         </AttachmentsContainer>
       )}
+
+      <SelectedCounter $visible={selectedCount > 0}>
+        Выбрано вложений: {selectedCount}
+      </SelectedCounter>
 
       {enlargedImage && (
         <Overlay onClick={() => setEnlargedImage(null)}>
