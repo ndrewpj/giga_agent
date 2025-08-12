@@ -1,10 +1,13 @@
 # GigaAgent
-Стенд с универсальным агентом.
+Универсальный агент.
 
 В данном проекте реализована агентская система с REPL (выполнением кода), tools, внешними инструментами.
 
 
 <img src="docs/images/schema.png" width=500>
+
+Демо:
+<img src="docs/images/demo.gif" width=500>
 
 ## Блоки
 - **GigaAgent** — агент работающий на LangGraph
