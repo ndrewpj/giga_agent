@@ -1,0 +1,52 @@
+import os
+
+import joblib
+import numpy as np
+
+from langchain_gigachat.embeddings import GigaChatEmbeddings
+
+
+emb = GigaChatEmbeddings(
+    model="EmbeddingsGigaR",
+)
+
+
+def probs_to_labels(probas, classes):
+    """
+    Получает матрицу вероятностей (n × k) и список классов,
+    возвращает массив меток длиной n.
+    """
+    idx = np.argmax(probas, axis=1)  # позиция максимальной вероятности по строке
+    return classes[idx]
+
+
+__location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+
+clf = joblib.load(os.path.join(__location__, "models/sentiment_logreg.joblib"))
+
+
+async def predict_sentiments(texts: list[str]) -> list[str]:
+    """
+    Определяет настроение текста в одну из этих меток: ["positive", "negative", "neutral"] Используй в том случае, если нужно определить настроение массива текстов
+
+    Args:
+        texts: Список текстов на анализ
+    """
+    if not all([isinstance(text, str) for text in texts]):
+        raise ValueError("All texts must be strings.")
+    embs = await emb.aembed_documents(texts)
+    X = np.vstack(embs).astype("float32")
+    return list(probs_to_labels(clf.predict_proba(X), clf.classes_))
+
+
+async def get_embeddings(texts: list[str]) -> list[list[float]]:
+    """
+    Получает эмбединги для списка текстов (можно использовать для кластеризации вместе с umap и hdbscan)
+
+    Args:
+        texts: Список текстов
+    """
+    if not all([isinstance(text, str) for text in texts]):
+        raise ValueError("All texts must be strings.")
+    embs = await emb.aembed_documents(texts)
+    return embs
