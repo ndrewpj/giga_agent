@@ -38,7 +38,7 @@ services:
             JUPYTER_CLIENT_API: http://repl:9090
             TOOL_CLIENT_API: http://tool_server:9091
         volumes:
-            - ./db/:/deps/__outer_graph/graph/db/
+            - ./db/:/deps/graph/db/
     repl:
         working_dir: /
         restart: always
