@@ -4,11 +4,11 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
-from sqlmodel import SQLModel, Field, select, func, JSON
+from sqlmodel import SQLModel, Field, select, func
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.ext.asyncio import AsyncEngine
