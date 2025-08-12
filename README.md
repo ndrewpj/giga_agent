@@ -7,6 +7,7 @@
 <img src="docs/images/schema.png" width=500>
 
 Демо:
+
 <img src="docs/images/demo.gif" width=500>
 
 ## Блоки
