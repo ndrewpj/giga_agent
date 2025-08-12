@@ -12,7 +12,7 @@ dependencies = [
     "greenlet>=3.2.3",
     "httpx>=0.28.1",
     "joblib>=1.5.1",
-    "kaleido>=1.0.0",
+    "kaleido==0.2.0",
     "langchain>=0.3.27",
     "langchain-core>=0.3.72",
     "langchain-gigachat>=0.3.12",
