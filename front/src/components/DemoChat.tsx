@@ -12,6 +12,7 @@ import Message from "./Message.tsx";
 import DemoToolBar from "./DemoToolBar.tsx";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
 import { PROGRESS_AGENTS } from "../config.ts";
+import {useSelectedAttachments} from "../hooks/SelectedAttachmentsContext.tsx";
 
 const ChatWrapper = styled.div`
   width: 100%;
@@ -61,6 +62,7 @@ const DemoChat = ({ onContinue }: DemoChatProps) => {
   const listRef = useRef<any>(null);
   const [firstSent, setFirstSend] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
+  const { selected, clear } = useSelectedAttachments();
 
   const thread = useStream<GraphState>({
     apiUrl: `${window.location.protocol}//${window.location.host}/graph`,
@@ -112,8 +114,10 @@ const DemoChat = ({ onContinue }: DemoChatProps) => {
       additional_kwargs: {
         user_input: content,
         files: files,
+        selected: selected
       },
     } as HumanMessage;
+    clear();
 
     thread.submit(
       { messages: [newMessage] },

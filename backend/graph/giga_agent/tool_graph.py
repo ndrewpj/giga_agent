@@ -209,7 +209,8 @@ async def tool_call(
                 schema.add_object(obj=add_data.pop("data"))
                 add_data[
                     "message"
-                ] += f"Результат функции вышел слишком длинным изучи результат функции в переменной с помощью python. \n Схема данных: {schema.to_schema()}"
+                ] += f"Результат функции вышел слишком длинным изучи результат функции в переменной с помощью python. Схема данных:\n"
+                add_data["schema"] = schema.to_schema()
             if action.get("name") == "get_urls":
                 add_data["message"] += result.pop("attention")
         else:

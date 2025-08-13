@@ -1,6 +1,5 @@
 from typing import TypedDict, Annotated, List
 
-from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import AnyMessage
 from langchain_gigachat import GigaChat
 from langgraph.graph import add_messages

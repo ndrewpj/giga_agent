@@ -193,6 +193,7 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
       additional_kwargs: {
         user_input: messageText,
         files: allFiles,
+        selected: selected
       },
     } as HumanMessage;
 

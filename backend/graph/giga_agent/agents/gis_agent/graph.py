@@ -89,6 +89,7 @@ async def city_explore(city: str):
     conf = {
         "configurable": {
             "thread_id": str(uuid.uuid4()),
+            "skip_search": False if os.getenv("TAVILY_API_KEY") else True,
         }
     }
     push_ui_message(

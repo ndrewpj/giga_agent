@@ -18,6 +18,7 @@ llm = GigaChat(
 class ConfigSchema(TypedDict):
     fetch_descriptions: bool
     print_messages: bool
+    skip_search: bool
 
 
 class MapState(TypedDict):

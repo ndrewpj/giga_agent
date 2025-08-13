@@ -10,7 +10,7 @@ import { HumanMessage } from "@langchain/langgraph-sdk";
 import { useNavigate, useParams } from "react-router-dom";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
 import {
-  SelectedAttachmentsProvider, useSelectedAttachments,
+  useSelectedAttachments,
 } from "../hooks/SelectedAttachmentsContext.tsx";
 
 const ChatWrapper = styled.div`

@@ -28,6 +28,7 @@ clf = joblib.load(os.path.join(__location__, "models/sentiment_logreg.joblib"))
 async def predict_sentiments(texts: list[str]) -> list[str]:
     """
     Определяет настроение текста в одну из этих меток: ["positive", "negative", "neutral"] Используй в том случае, если нужно определить настроение массива текстов
+    Помни, что ты должен вызывать функцию только с именованными агрументами. Пример: predict_sentiments(texts=['текст'])
 
     Args:
         texts: Список текстов на анализ
