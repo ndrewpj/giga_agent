@@ -185,7 +185,7 @@ async def create_landing(
         code = code.replace(name, f"data:image/jpeg;base64, {value}")
     file_id = str(uuid.uuid4())
     return {
-        "text": result_state["done"],
+        "text": result_state.get("done", "Страница готова"),
         "message": f'В результате выполнения была сгенерирована HTML страница {file_id}. Покажи её пользователю через "![HTML-страница](html:{file_id})" и напиши ответ с использованием информации из `text` и куда двигаться пользователю дальше\nТекущий thread_id: "{thread_id}" используй его, если пользователю нужно будет продолжить работу над страницей. Ни в коем случае не пиши thread_id пользователю — он нужен только для параметра thread_id!',
         "giga_attachments": [{"type": "text/html", "file_id": file_id, "data": code}],
         "thread_id": thread_id,
