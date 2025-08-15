@@ -3,12 +3,7 @@ import os
 import joblib
 import numpy as np
 
-from langchain_gigachat.embeddings import GigaChatEmbeddings
-
-
-emb = GigaChatEmbeddings(
-    model="EmbeddingsGigaR",
-)
+from giga_agent.utils.llm import load_embeddings
 
 
 def probs_to_labels(probas, classes):
@@ -22,7 +17,12 @@ def probs_to_labels(probas, classes):
 
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-clf = joblib.load(os.path.join(__location__, "models/sentiment_logreg.joblib"))
+clf = joblib.load(
+    os.path.join(
+        __location__,
+        os.getenv("GIGA_AGENT_SENTIMENT_MODEL", "models/sentiment_gigachat.joblib"),
+    )
+)
 
 
 async def predict_sentiments(texts: list[str]) -> list[str]:
@@ -35,6 +35,7 @@ async def predict_sentiments(texts: list[str]) -> list[str]:
     """
     if not all([isinstance(text, str) for text in texts]):
         raise ValueError("All texts must be strings.")
+    emb = load_embeddings()
     embs = await emb.aembed_documents(texts)
     X = np.vstack(embs).astype("float32")
     return list(probs_to_labels(clf.predict_proba(X), clf.classes_))
@@ -49,5 +50,6 @@ async def get_embeddings(texts: list[str]) -> list[list[float]]:
     """
     if not all([isinstance(text, str) for text in texts]):
         raise ValueError("All texts must be strings.")
+    emb = load_embeddings()
     embs = await emb.aembed_documents(texts)
     return embs

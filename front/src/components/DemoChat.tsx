@@ -4,7 +4,7 @@ import MessageList from "./MessageList";
 import InputArea from "./InputArea";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { useStableMessages } from "../hooks/useStableMessages";
-import { FileData, GraphState } from "../interfaces";
+import { GraphState } from "../interfaces";
 import { HumanMessage } from "@langchain/langgraph-sdk";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDemoItems } from "../hooks/DemoItemsProvider.tsx";
@@ -12,7 +12,7 @@ import Message from "./Message.tsx";
 import DemoToolBar from "./DemoToolBar.tsx";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
 import { PROGRESS_AGENTS } from "../config.ts";
-import {useSelectedAttachments} from "../hooks/SelectedAttachmentsContext.tsx";
+import { SelectedAttachmentsProvider } from "../hooks/SelectedAttachmentsContext.tsx";
 
 const ChatWrapper = styled.div`
   width: 100%;
@@ -62,7 +62,6 @@ const DemoChat = ({ onContinue }: DemoChatProps) => {
   const listRef = useRef<any>(null);
   const [firstSent, setFirstSend] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
-  const { selected, clear } = useSelectedAttachments();
 
   const thread = useStream<GraphState>({
     apiUrl: `${window.location.protocol}//${window.location.host}/graph`,
@@ -107,48 +106,6 @@ const DemoChat = ({ onContinue }: DemoChatProps) => {
       setIsFinished(true);
     }
   }, [stableMessages, demoItem]);
-  const handleSendMessage = async (content: string, files?: FileData[]) => {
-    const newMessage = {
-      type: "human",
-      content: content,
-      additional_kwargs: {
-        user_input: content,
-        files: files,
-        selected: selected
-      },
-    } as HumanMessage;
-    clear();
-
-    thread.submit(
-      { messages: [newMessage] },
-      {
-        optimisticValues(prev) {
-          const prevMessages = prev.messages ?? [];
-          const newMessages = [...prevMessages, newMessage];
-          return { ...prev, messages: newMessages };
-        },
-        streamMode: ["messages"],
-      },
-    );
-  };
-
-  const handleContinue = async (data: any) => {
-    thread.submit(undefined, {
-      command: { resume: data },
-      optimisticValues(prev) {
-        if (!data.message) return {};
-        const prevMessages = prev.messages ?? [];
-        const newMessages = [
-          ...prevMessages,
-          {
-            type: "tool",
-            content: `"<decline>${data.message}</decline>"`,
-          },
-        ];
-        return { ...prev, messages: newMessages };
-      },
-    });
-  };
 
   const handleContinueDemo = () => {
     let nextIndex = (demoIndexNum + 1) % demoItems.length;
@@ -160,66 +117,63 @@ const DemoChat = ({ onContinue }: DemoChatProps) => {
   };
 
   return (
-    <ChatWrapper>
-      <ChatContainer>
-        <MessageList
-          messages={stableMessages ?? []}
-          thread={thread}
-          ref={listRef}
-          progressAgent={agentProgress}
-        >
-          {!firstSent && (
-            <Message
-              key={0}
-              message={{
-                type: "human",
-                id: "123",
-                content: demoItem?.json_data.message ?? "",
-                // @ts-ignore
-                additional_kwargs: {
-                  rendered: false,
-                  files: demoItem?.json_data.attachments ?? [],
-                },
-              }}
-              onWrite={() => {
-                if (listRef.current) listRef.current.scrollToBottom();
-              }}
-              onWriteEnd={() => {
-                const newMessage = {
+    <SelectedAttachmentsProvider>
+      <ChatWrapper>
+        <ChatContainer>
+          <MessageList
+            messages={stableMessages ?? []}
+            thread={thread}
+            ref={listRef}
+            progressAgent={agentProgress}
+          >
+            {!firstSent && (
+              <Message
+                key={0}
+                message={{
                   type: "human",
+                  id: "123",
                   content: demoItem?.json_data.message ?? "",
+                  // @ts-ignore
                   additional_kwargs: {
-                    user_input: demoItem?.json_data.message ?? "",
+                    rendered: false,
                     files: demoItem?.json_data.attachments ?? [],
                   },
-                } as HumanMessage;
-
-                thread.submit(
-                  { messages: [newMessage] },
-                  {
-                    optimisticValues(prev) {
-                      const prevMessages = prev.messages ?? [];
-                      const newMessages = [...prevMessages, newMessage];
-                      return { ...prev, messages: newMessages };
+                }}
+                onWrite={() => {
+                  if (listRef.current) listRef.current.scrollToBottom();
+                }}
+                onWriteEnd={() => {
+                  const newMessage = {
+                    type: "human",
+                    content: demoItem?.json_data.message ?? "",
+                    additional_kwargs: {
+                      user_input: demoItem?.json_data.message ?? "",
+                      files: demoItem?.json_data.attachments ?? [],
                     },
-                    streamMode: ["messages"],
-                  },
-                );
-                setFirstSend(true);
-              }}
-              writeMessage={true}
-            />
-          )}
-        </MessageList>
-        <InputArea
-          onSend={handleSendMessage}
-          onContinue={handleContinue}
-          isLoading={thread.isLoading}
-          interrupt={thread.interrupt}
-        />
-      </ChatContainer>
-      <DemoToolBar isFinished={isFinished} onContinue={handleContinueDemo} />
-    </ChatWrapper>
+                  } as HumanMessage;
+
+                  thread.submit(
+                    { messages: [newMessage] },
+                    {
+                      optimisticValues(prev) {
+                        const prevMessages = prev.messages ?? [];
+                        const newMessages = [...prevMessages, newMessage];
+                        return { ...prev, messages: newMessages };
+                      },
+                      streamMode: ["messages"],
+                    },
+                  );
+                  setFirstSend(true);
+                }}
+                writeMessage={true}
+              />
+            )}
+          </MessageList>
+          <InputArea thread={thread} />
+        </ChatContainer>
+        <DemoToolBar isFinished={isFinished} onContinue={handleContinueDemo} />
+      </ChatWrapper>
+    </SelectedAttachmentsProvider>
   );
 };
 

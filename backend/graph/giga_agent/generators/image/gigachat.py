@@ -5,6 +5,7 @@ from typing import Optional
 import httpx
 
 from giga_agent.generators.image.image_gen import ImageGen
+from giga_agent.utils.llm import load_gigachat
 
 
 class CensorException(Exception):
@@ -32,7 +33,7 @@ class GigaChatImageGen(ImageGen):
         self._client = None
 
     async def init(self) -> None:
-        from giga_agent.config import llm
+        llm = load_gigachat()
 
         self._client = httpx.AsyncClient(
             verify=False,

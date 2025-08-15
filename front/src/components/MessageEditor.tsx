@@ -16,7 +16,7 @@ import { HumanMessage, Message } from "@langchain/langgraph-sdk";
 import OverlayPortal from "./OverlayPortal.tsx";
 // @ts-ignore
 import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
-import {useSelectedAttachments} from "../hooks/SelectedAttachmentsContext.tsx";
+import { useSelectedAttachments } from "../hooks/SelectedAttachmentsContext.tsx";
 
 const InputContainer = styled.div`
   padding: 16px;
@@ -133,13 +133,8 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
   const textRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
-  const {
-    uploadFiles,
-    setExistingFiles,
-    items,
-    removeItem,
-    getAllFileData,
-  } = useFileUpload();
+  const { uploadFiles, setExistingFiles, items, removeItem, getAllFileData } =
+    useFileUpload();
   const [messageText, setMessageText] = useState("");
   const { selected } = useSelectedAttachments();
   const selectedCount = Object.keys(selected).length;
@@ -176,6 +171,7 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      void handleSendMessage();
     }
   };
 
@@ -193,7 +189,7 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
       additional_kwargs: {
         user_input: messageText,
         files: allFiles,
-        selected: selected
+        selected: selected,
       },
     } as HumanMessage;
 
@@ -223,7 +219,7 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
         checkpoint: parentCheckpoint,
       },
     );
-      }, [thread, messageText, message, onCancel, getAllFileData]);
+  }, [thread, messageText, message, onCancel, getAllFileData, selected]);
 
   return (
     <>
@@ -261,7 +257,9 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
             Отправить
           </SendButton>
         </InputRow>
-        <SelectedCounter $visible={selectedCount > 0}>Выбрано вложений: {selectedCount}</SelectedCounter>
+        <SelectedCounter $visible={selectedCount > 0}>
+          Выбрано вложений: {selectedCount}
+        </SelectedCounter>
       </InputContainer>
       {items.length > 0 && (
         <AttachmentsContainer>
@@ -282,7 +280,9 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
                 it.data?.file_id ? (
                   <ImagePreview src={"/files/" + it.data.path} />
                 ) : (
-                  <span>{it.name ?? it.data?.path.replace(/^files\//, "")}</span>
+                  <span>
+                    {it.name ?? it.data?.path.replace(/^files\//, "")}
+                  </span>
                 )
               ) : it.previewUrl ? (
                 <ImagePreview src={it.previewUrl} />

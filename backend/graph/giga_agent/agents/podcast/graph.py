@@ -23,6 +23,7 @@ from giga_agent.agents.podcast.prompts import (
     TONE_MODIFIER,
     TONE_MODIFIERS,
     QUESTION_MODIFIER,
+    LANGUAGE_PROMPT,
 )
 from giga_agent.agents.podcast.schema import ShortDialogue, MediumDialogue
 from giga_agent.agents.podcast.tts_sber import (
@@ -30,7 +31,9 @@ from giga_agent.agents.podcast.tts_sber import (
     get_sber_tts_token,
 )
 from giga_agent.agents.podcast.utils import parse_url, generate_script
+from giga_agent.utils.lang import LANG
 from giga_agent.utils.env import load_project_env
+from giga_agent.utils.messages import filter_tool_calls
 
 load_project_env()
 
@@ -66,6 +69,7 @@ async def summarize_messages(state: PodcastState):
 async def script(state: PodcastState):
     # Модифицируем системный промпт на основе пользовательского ввода
     modified_system_prompt = SYSTEM_PROMPT
+    lang_prompt = LANGUAGE_PROMPT.format(language=LANG)
 
     if state.get("question") is not None:
         modified_system_prompt += f"\n\n{QUESTION_MODIFIER} {state.get('question')}"
@@ -73,6 +77,7 @@ async def script(state: PodcastState):
         modified_system_prompt += (
             f"\n\n{TONE_MODIFIER} {TONE_MODIFIERS[state.get('tone')]}."
         )
+    modified_system_prompt += f"\n\n{lang_prompt}"
     if state.get("length") and state.get("length") in LENGTH_MODIFIERS:
         modified_system_prompt += f"\n\n{LENGTH_MODIFIERS[state.get('length')]}"
     if state.get("length") == "short":
@@ -177,9 +182,7 @@ async def podcast_generate(
     input_ = {}
     if use_messages:
         input_["use_messages"] = use_messages
-        last_mes = state["messages"][-1].model_copy()
-        last_mes.tool_calls = None
-        last_mes.additional_kwargs["function_call"] = None
+        last_mes = filter_tool_calls(state["messages"][-1])
         input_["messages"] = state["messages"][:-1] + [last_mes]
     if url:
         input_["url"] = url

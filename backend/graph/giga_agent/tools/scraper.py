@@ -1,21 +1,18 @@
 import asyncio
+import os
 from typing import Annotated
 
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
-from langchain_gigachat import GigaChat
 from langchain_tavily import TavilyExtract
 from langgraph.prebuilt import InjectedState
 
-llm = GigaChat(
-    model="GigaChat-2-Pro",
-    profanity_check=False,
-    timeout=120,
-    disable_streaming=True,
-    top_p=0.3,
-    streaming=False,
-).with_config(tags=["nostream"])
+from giga_agent.utils.env import load_project_env
+from giga_agent.utils.llm import load_llm, is_llm_image_inline, is_llm_gigachat
+from giga_agent.utils.messages import filter_tool_calls
+
+llm = load_llm(tag="fast").bind(top_p=0.3).with_config(tags=["nostream"])
 
 PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -51,15 +48,13 @@ PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
-extract_ch = PROMPT | llm
-
 scrape_sem = asyncio.Semaphore(4)
 
 
 async def url_response_to_llm(messages, response):
-    last_mes = messages[-1].model_copy()
-    last_mes.tool_calls = None
-    last_mes.additional_kwargs["function_call"] = None
+    extract_ch = PROMPT | llm
+    last_mes = filter_tool_calls(messages[-1])
+
     message = HumanMessage(
         content=f"""**Твоя задача:**
 
@@ -114,7 +109,8 @@ async def get_urls(urls: list[str], state: Annotated[dict, InjectedState]):
     response = await extract.ainvoke(
         {"urls": urls, "include_images": False, "extract_depth": "basic"}
     )
-    await llm._client.aget_token()
+    if is_llm_gigachat():
+        await llm._client.aget_token()
     tasks = []
     for result in response["results"]:
         tasks.append(url_response_to_llm(state["messages"], result))

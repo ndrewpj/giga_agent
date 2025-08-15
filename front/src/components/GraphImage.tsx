@@ -49,6 +49,9 @@ const SelectorButton = styled.button<{ $selected: boolean, isGraph: boolean }>`
   border: ${({ $selected }) => ($selected ? "1px solid #1976d2" : "1px solid #fff")};
   color: #fff;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2);
+    @media print {
+    display: none;
+  }
 
   &:hover {
     transform: scale(1.05);

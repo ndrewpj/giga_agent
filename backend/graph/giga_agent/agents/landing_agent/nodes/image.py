@@ -1,5 +1,6 @@
 import asyncio
 import json
+import uuid
 
 from langchain_core.messages import ToolMessage, HumanMessage
 from langchain_core.output_parsers import JsonOutputParser
@@ -12,6 +13,7 @@ from langchain_core.runnables import (
 
 from giga_agent.agents.landing_agent.config import llm, LandingState
 from giga_agent.agents.landing_agent.prompts.ru import IMAGE_PROMPT
+from giga_agent.utils.lang import LANG
 from giga_agent.generators.image import load_image_gen
 from giga_agent.utils.env import load_project_env
 
@@ -30,7 +32,7 @@ async def image_node(state: LandingState, config: RunnableConfig):
 
     prompt = ChatPromptTemplate.from_messages(
         [("system", IMAGE_PROMPT), MessagesPlaceholder("messages")]
-    )
+    ).partial(language=LANG)
 
     chain = (
         prompt
@@ -94,11 +96,12 @@ async def image_node(state: LandingState, config: RunnableConfig):
             continue
         images_base_64[i["name"]] = b
         new_images.append(i)
+    action = state["agent_messages"][-1].tool_calls[0]
     return {
         "image_messages": full_messages[:-1],
         "images": new_images,
         "agent_messages": ToolMessage(
-            tool_call_id="123",
+            tool_call_id=action.get("id", str(uuid.uuid4())),
             content=json.dumps(
                 {
                     "images": filtered_images,

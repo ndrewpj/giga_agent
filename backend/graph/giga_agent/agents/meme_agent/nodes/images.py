@@ -1,8 +1,6 @@
-import asyncio
 import base64
 import os
 
-import httpx
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
@@ -19,78 +17,6 @@ from giga_agent.agents.meme_agent.prompts.ru import IMAGE_PROMPT
 __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
 from giga_agent.generators.image import load_image_gen
-
-semaphore = asyncio.Semaphore(7)
-
-
-class CensorException(Exception):
-    """Запрос отклонён цензурой (HTTP 451)."""
-
-    pass
-
-
-async def generate_image_async(
-    prompt: str,
-    width: int,
-    height: int,
-    token: str,
-    client,
-    *,
-    max_retries: int = 3,
-    timeout: float | None = 60.0,
-) -> str:
-    """
-    Асинхронно генерирует изображение в Kandinsky-4.1.
-
-    • Повторяет запрос до `max_retries` раз,
-      *кроме* случая HTTP 451 — тогда сразу `CensorException`.
-    • Возвращает финальный объект `httpx.Response`
-      (успешный либо последний неуспешный).
-
-    :raises CensorException: при коде 451.
-    :raises httpx.HTTPStatusError: если достигнут лимит ретраев
-                                   и статус остаётся ошибочным (≠2xx, 3xx).
-    """
-    async with semaphore:
-        payload = {
-            "mode": "kandinsky-4.1:image",
-            # "cache_force_bypass": True,
-            "query": prompt,
-            "model_params": {
-                "width": width,
-                "height": height,
-            },
-        }
-
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        }
-
-        attempt = 0
-        while True:
-            attempt += 1
-            resp = await client.post(
-                "https://gigachat.devices.sberbank.ru/api/v1/image/generate",
-                json=payload,
-                headers=headers,
-            )
-
-            # 451 — сразу исключение без повторных попыток
-            if resp.status_code in [451]:
-                raise CensorException("Server returned HTTP 451 — access restricted.")
-
-            # Любой успешный статус — возвращаем
-            if resp.is_success:
-                return base64.b64encode(resp.content).decode("ascii")
-
-            # Неуспех: если исчерпали лимит — поднимаем HTTPStatusError
-            if attempt >= max_retries:
-                resp.raise_for_status()  # пробросит httpx.HTTPStatusError
-            else:
-                # Мини-бэкофф, чтобы не бомбить сервер
-                await asyncio.sleep(2 ** (attempt - 1))  # 1 с, 2 с …
-                continue
 
 
 def memeify(
@@ -112,20 +38,119 @@ def memeify(
         else:  # старые Pillow
             return draw.textsize(text, font=font)  # type: ignore[attr-defined]
 
-    def wrap_lines(draw, text, font, max_width):
-        """Разбивает текст на строки так, чтобы каждая влезла в max_width."""
-        words = text.upper().split()
-        lines, line = [], []
-        for word in words:
-            test = " ".join(line + [word])
-            if draw.textlength(test, font=font) <= max_width:
-                line.append(word)
-            else:
+    def contains_cjk(text: str) -> bool:
+        """Грубая проверка наличия CJK/корейских/японских символов."""
+        for ch in text:
+            code = ord(ch)
+            # CJK Unified Ideographs and Extensions
+            if (
+                0x3400 <= code <= 0x4DBF
+                or 0x4E00 <= code <= 0x9FFF
+                or 0xF900 <= code <= 0xFAFF
+                or 0x20000 <= code <= 0x2A6DF
+                or 0x2A700 <= code <= 0x2B73F
+                or 0x2B740 <= code <= 0x2B81F
+                or 0x2B820 <= code <= 0x2CEAF
+                or 0x2CEB0 <= code <= 0x2EBEF
+            ):
+                return True
+            # Hiragana, Katakana
+            if 0x3040 <= code <= 0x30FF:
+                return True
+            # Hangul
+            if 0xAC00 <= code <= 0xD7AF:
+                return True
+        return False
+
+    def contains_hangul(text: str) -> bool:
+        for ch in text:
+            code = ord(ch)
+            if 0xAC00 <= code <= 0xD7AF or 0x1100 <= code <= 0x11FF or 0x3130 <= code <= 0x318F or 0xA960 <= code <= 0xA97F or 0xD7B0 <= code <= 0xD7FF:
+                return True
+        return False
+
+    def contains_kana(text: str) -> bool:
+        for ch in text:
+            code = ord(ch)
+            if 0x3040 <= code <= 0x30FF or 0x31F0 <= code <= 0x31FF:
+                return True
+        return False
+
+    def wrap_lines(draw, text, font, max_width, is_cjk: bool):
+        """Разбивает текст на строки так, чтобы каждая влезла в max_width.
+        Для CJK (без пробелов) переносим по символам, не upper()."""
+        if is_cjk:
+            raw = text
+            lines = []
+            current = ""
+            for ch in raw:
+                test = current + ch
+                if draw.textlength(test, font=font) <= max_width:
+                    current = test
+                else:
+                    if current:
+                        lines.append(current)
+                    current = ch
+            if current:
+                lines.append(current)
+            return lines
+        else:
+            words = text.upper().split()
+            lines, line = [], []
+            for word in words:
+                test = " ".join(line + [word])
+                if draw.textlength(test, font=font) <= max_width:
+                    line.append(word)
+                else:
+                    if line:
+                        lines.append(" ".join(line))
+                    line = [word]
+            if line:
                 lines.append(" ".join(line))
-                line = [word]
-        if line:
-            lines.append(" ".join(line))
-        return lines
+            return lines
+
+    def try_load_font(paths, size: int):
+        for p in paths:
+            try:
+                return ImageFont.truetype(p, size)
+            except Exception:
+                continue
+        return None
+
+    def select_font_for_text(font_size: int, default_font_path: str, sample_text: str):
+        """Выбирает шрифт из локальной папки.
+        - Латиница/кириллица/без CJK → Impact (default_font_path)
+        - Корейский (есть хангыль) → BlackHanSans-Regular.ttf
+        - Японский (есть каны) → DelaGothicOne-Regular.ttf
+        - Китайский (CJK без кан/хангыля) → ZCOOLQingKeHuangYou-Regular.ttf
+        """
+        is_any_cjk = contains_cjk(sample_text) or contains_hangul(sample_text) or contains_kana(sample_text)
+        if not is_any_cjk:
+            try:
+                return ImageFont.truetype(os.path.join(__location__, default_font_path), font_size), False
+            except Exception:
+                return ImageFont.load_default(), False
+
+        # Приоритет: KR → JP → CN
+        if contains_hangul(sample_text):
+            font = try_load_font([os.path.join(__location__, "BlackHanSans-Regular.ttf")], font_size)
+            if font:
+                return font, True
+        if contains_kana(sample_text):
+            font = try_load_font([os.path.join(__location__, "DelaGothicOne-Regular.ttf")], font_size)
+            if font:
+                return font, True
+
+        # Китайский по умолчанию для прочих CJK
+        font = try_load_font([os.path.join(__location__, "ZCOOLQingKeHuangYou-Regular.ttf")], font_size)
+        if font:
+            return font, True
+
+        # Если вдруг локальные файлы отсутствуют, последний шанс — Impact или default
+        try:
+            return ImageFont.truetype(os.path.join(__location__, default_font_path), font_size), True
+        except Exception:
+            return ImageFont.load_default(), True
 
     # открываем картинку
     im = Image.open(BytesIO(img_bytes)).convert("RGB")
@@ -135,12 +160,13 @@ def memeify(
     # подбираем размер шрифта из ширины картинки
     font_size = int(w * font_ratio)
 
-    font = ImageFont.truetype(os.path.join(__location__, "impact.ttf"), font_size)
+    # Выбор шрифта с учётом возможного CJK
+    font, is_cjk = select_font_for_text(font_size, "impact.ttf", f"{up_text}\n{down_text}")
 
     max_width = w - int(w * margin_ratio * 2)
 
     # --- верхний текст ---
-    top_lines = wrap_lines(draw, up_text, font, max_width)
+    top_lines = wrap_lines(draw, up_text, font, max_width, is_cjk)
     y = int(h * margin_ratio)
     for line in top_lines:
         line_w, line_h = text_size(draw, line, font=font)
@@ -157,7 +183,7 @@ def memeify(
         y += line_h + 5  # небольшой интервал между строками
 
     # --- нижний текст ---
-    bottom_lines = wrap_lines(draw, down_text, font, max_width)[
+    bottom_lines = wrap_lines(draw, down_text, font, max_width, is_cjk)[
         ::-1
     ]  # рисуем снизу вверх
     y = h - int(h * margin_ratio)

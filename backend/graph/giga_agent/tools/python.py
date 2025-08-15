@@ -1,10 +1,12 @@
 import asyncio
 import json
+import uuid
 from base64 import b64decode, b64encode
 
 import plotly
 from pydantic import BaseModel, Field
 
+from giga_agent.utils.llm import is_llm_image_inline, load_llm
 from giga_agent.utils.jupyter import JupyterClient
 from langchain_core.tools import BaseTool
 import re
@@ -31,8 +33,6 @@ class ExecuteTool(BaseTool):
         return {}
 
     async def _arun(self, code: str):
-        from giga_agent.config import llm
-
         client = JupyterClient(
             base_url=os.getenv("JUPYTER_CLIENT_API", "http://127.0.0.1:9090")
         )
@@ -76,10 +76,14 @@ class ExecuteTool(BaseTool):
                 attachment_data["data"] = attachment["image/png"]
             if img is not None:
                 have_images = True
-                uploaded_file = await llm.aupload_file(("image.png", img))
+                if is_llm_image_inline():
+                    llm = load_llm()
+                    uploaded_file_id = (await llm.aupload_file(("image.png", img))).id_
+                else:
+                    uploaded_file_id = str(uuid.uuid4())
                 attachment_data["img_data"] = b64encode(img)
-                attachment_data["file_id"] = uploaded_file.id_
-                attachment_info += f"ID изображения '{uploaded_file.id_}'. Ты можешь показать это пользователю с помощью через \"![График](graph:{uploaded_file.id_})\" "
+                attachment_data["file_id"] = uploaded_file_id
+                attachment_info += f"ID изображения '{uploaded_file_id}'. Ты можешь показать это пользователю с помощью через \"![График](graph:{uploaded_file_id})\" "
                 results.append(attachment_info)
                 attachments.append(attachment_data)
         result = "\n".join(results)

@@ -1,18 +1,9 @@
 from typing import TypedDict, List
 
-from langchain_gigachat import GigaChat
-
 from giga_agent.agents.gis_agent.utils.gis_client import Location, Attraction, Point
+from giga_agent.utils.llm import load_llm
 
-llm = GigaChat(
-    model="GigaChat-2-Max",
-    verify_ssl_certs=False,
-    profanity_check=False,
-    timeout=120,
-    disable_streaming=True,
-    top_p=0.4,
-    streaming=False,
-)
+llm = load_llm().with_config(tags=["nostream"])
 
 
 class ConfigSchema(TypedDict):

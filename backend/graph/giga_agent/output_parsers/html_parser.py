@@ -14,10 +14,10 @@ class HTMLParser(BaseOutputParser):
         matches = re.findall(regex, text, re.DOTALL)
         if matches:
             if len(matches) > 1:
-                raise OutputParserException(error="Too many html!")
+                raise OutputParserException(error="Too many ```html ``` !")
             return "\n".join(matches).strip()
         else:
-            pass
+            raise OutputParserException(error="No ```html ``` block!")
 
     @property
     def _type(self) -> str:

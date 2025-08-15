@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import styled from "styled-components";
-import { Interrupt } from "@langchain/langgraph-sdk";
+import { HumanMessage } from "@langchain/langgraph-sdk";
 import { Check, Paperclip, Send, X } from "lucide-react";
 import { useSettings } from "./Settings.tsx";
 import { useFileUpload, UploadedFile } from "../hooks/useFileUploads";
@@ -16,7 +16,9 @@ import {
   ProgressOverlay,
   RemoveButton,
 } from "./Attachments.tsx";
-import { FileData } from "../interfaces.ts";
+import { FileData, GraphState } from "../interfaces.ts";
+// @ts-ignore
+import { UseStream } from "@langchain/langgraph-sdk/dist/react/stream";
 
 const InputContainer = styled.div`
   padding: 16px;
@@ -125,6 +127,7 @@ const CancelButton = styled(IconButton)`
 
 const SendButton = styled(IconButton)`
   background-color: #2d2d2d;
+
   &:hover:not(:disabled) {
     background-color: #005bb5;
   }
@@ -133,28 +136,72 @@ const SendButton = styled(IconButton)`
 // Прочие стили для превью и оверлея оставляем без изменений...
 
 interface InputAreaProps {
-  onSend: (content: string, attachments?: FileData[]) => void;
-  isLoading: boolean;
-  interrupt?: Interrupt;
-  onContinue: (data: any) => Promise<void>;
+  thread?: UseStream<GraphState>;
 }
 
-const InputArea: React.FC<InputAreaProps> = ({
-  onSend,
-  isLoading,
-  interrupt,
-  onContinue,
-}) => {
+const InputArea: React.FC<InputAreaProps> = ({ thread }) => {
   const [message, setMessage] = useState("");
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const { settings } = useSettings();
   const { uploads, uploadFiles, removeUpload, resetUploads } = useFileUpload();
-  const { selected } = useSelectedAttachments();
+  const { selected, clear } = useSelectedAttachments();
+
   const selectedCount = Object.keys(selected).length;
 
   const isUploading = uploads.some((u) => u.progress < 100 && !u.error);
+  const handleSendMessage = useCallback(
+    async (content: string, files?: FileData[]) => {
+      const newMessage = {
+        type: "human",
+        content: content,
+        additional_kwargs: {
+          user_input: content,
+          files: files,
+          selected: selected,
+        },
+      } as HumanMessage;
+      clear();
+
+      thread.submit(
+        { messages: [newMessage] },
+        {
+          //@ts-ignore
+          optimisticValues(prev) {
+            const prevMessages = prev.messages ?? [];
+            const newMessages = [...prevMessages, newMessage];
+            return { ...prev, messages: newMessages };
+          },
+          streamMode: ["messages"],
+          onDisconnect: "continue",
+        },
+      );
+    },
+    [thread, selected, clear],
+  );
+  const handleContinueThread = useCallback(
+    async (data: any) => {
+      thread.submit(undefined, {
+        command: { resume: data },
+        //@ts-ignore
+        optimisticValues(prev) {
+          if (!data.message) return {};
+          const prevMessages = prev.messages ?? [];
+          const newMessages = [
+            ...prevMessages,
+            {
+              type: "tool",
+              content: `"<decline>${data.message}</decline>"`,
+            },
+          ];
+          return { ...prev, messages: newMessages };
+        },
+        onDisconnect: "continue",
+      });
+    },
+    [thread],
+  );
 
   // автоподгон высоты
   const autoResize = () => {
@@ -170,22 +217,30 @@ const InputArea: React.FC<InputAreaProps> = ({
     autoResize();
   }, [message]);
 
+  const handleContinue = useCallback(
+    (type: "comment" | "approve") => {
+      void handleContinueThread({ type, message });
+      setMessage("");
+    },
+    [setMessage, handleContinueThread, message],
+  );
+
   useEffect(() => {
     if (
-      interrupt &&
-      interrupt.value &&
+      thread.interrupt &&
+      thread.interrupt.value &&
       // @ts-ignore
-      interrupt.value.type === "approve" &&
+      thread.interrupt.value.type === "approve" &&
       settings.autoApprove
     ) {
       handleContinue("approve");
     }
-  }, [interrupt, settings.autoApprove]);
+  }, [thread, settings.autoApprove, handleContinue]);
 
   const handleSend = () => {
     if (!message.trim() && uploads.length === 0) return;
     const attachments = uploads.map((u) => u.data).filter(Boolean);
-    onSend(message, attachments as any);
+    void handleSendMessage(message, attachments as any);
     setMessage("");
     resetUploads();
   };
@@ -193,8 +248,8 @@ const InputArea: React.FC<InputAreaProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && !isUploading) {
-        if (interrupt) {
+      if (!thread.isLoading && !isUploading) {
+        if (thread.interrupt) {
           handleContinue(message ? "comment" : "approve");
         } else {
           handleSend();
@@ -210,11 +265,6 @@ const InputArea: React.FC<InputAreaProps> = ({
     }
   };
 
-  const handleContinue = (type: "comment" | "approve") => {
-    onContinue({ type, message });
-    setMessage("");
-  };
-
   return (
     <InputContainer>
       <InputRow>
@@ -223,12 +273,12 @@ const InputArea: React.FC<InputAreaProps> = ({
           ref={fileInputRef}
           onChange={handleFileChange}
           multiple
-          disabled={isLoading}
+          disabled={thread.isLoading}
         />
         <IconButton
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isLoading}
+          disabled={thread.isLoading}
           title="Добавить вложения"
         >
           <Paperclip />
@@ -240,24 +290,24 @@ const InputArea: React.FC<InputAreaProps> = ({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isLoading}
+          disabled={thread.isLoading}
         />
-        {interrupt &&
-        interrupt.value &&
+        {thread.interrupt &&
+        thread.interrupt.value &&
         // @ts-ignore
-        interrupt.value.type === "approve" &&
+        thread.interrupt.value.type === "approve" &&
         !settings.autoApprove ? (
           <>
             <CancelButton
               onClick={() => handleContinue("comment")}
-              disabled={isLoading}
+              disabled={thread.isLoading}
               title="Отменить выполнение"
             >
               <X />
             </CancelButton>
             <ApproveButton
               onClick={() => handleContinue("approve")}
-              disabled={isLoading}
+              disabled={thread.isLoading}
               title="Подтвердить выполнение"
             >
               <Check />
@@ -267,7 +317,7 @@ const InputArea: React.FC<InputAreaProps> = ({
           <SendButton
             type="button"
             onClick={handleSend}
-            disabled={isLoading || !message.trim() || isUploading}
+            disabled={thread.isLoading || !message.trim() || isUploading}
             title="Отправить"
           >
             <Send />

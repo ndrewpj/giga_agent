@@ -1,17 +1,14 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useMemo } from "react";
 import styled from "styled-components";
 import MessageList from "./MessageList";
 import InputArea from "./InputArea";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { PROGRESS_AGENTS } from "../config.ts";
 import { useStableMessages } from "../hooks/useStableMessages";
-import { FileData, GraphState } from "../interfaces";
-import { HumanMessage } from "@langchain/langgraph-sdk";
+import { GraphState } from "../interfaces";
 import { useNavigate, useParams } from "react-router-dom";
 import { uiMessageReducer } from "@langchain/langgraph-sdk/react-ui";
-import {
-  useSelectedAttachments,
-} from "../hooks/SelectedAttachmentsContext.tsx";
+import { SelectedAttachmentsProvider } from "../hooks/SelectedAttachmentsContext.tsx";
 
 const ChatWrapper = styled.div`
   width: 100%;
@@ -49,7 +46,6 @@ const ChatContainer = styled.div`
 const Chat: React.FC = () => {
   const navigate = useNavigate();
   const { threadId } = useParams<{ threadId?: string }>();
-  const { selected, clear } = useSelectedAttachments();
   const thread = useStream<GraphState>({
     apiUrl: `${window.location.protocol}//${window.location.host}/graph`,
     assistantId: "chat",
@@ -84,70 +80,20 @@ const Chat: React.FC = () => {
   }, [thread.values.ui]);
 
   const stableMessages = useStableMessages(thread);
-  const handleSendMessage = useCallback(
-    async (content: string, files?: FileData[]) => {
-      const newMessage = {
-        type: "human",
-        content: content,
-        additional_kwargs: {
-          user_input: content,
-          files: files,
-          selected: selected
-        },
-      } as HumanMessage;
-      clear();
-
-      thread.submit(
-        { messages: [newMessage] },
-        {
-          optimisticValues(prev) {
-            const prevMessages = prev.messages ?? [];
-            const newMessages = [...prevMessages, newMessage];
-            return { ...prev, messages: newMessages };
-          },
-          streamMode: ["messages"],
-          onDisconnect: "continue",
-        },
-      );
-    },
-    [thread, selected, clear],
-  );
-
-  const handleContinue = async (data: any) => {
-    thread.submit(undefined, {
-      command: { resume: data },
-      optimisticValues(prev) {
-        if (!data.message) return {};
-        const prevMessages = prev.messages ?? [];
-        const newMessages = [
-          ...prevMessages,
-          {
-            type: "tool",
-            content: `"<decline>${data.message}</decline>"`,
-          },
-        ];
-        return { ...prev, messages: newMessages };
-      },
-      onDisconnect: "continue",
-    });
-  };
 
   return (
-    <ChatWrapper>
+    <SelectedAttachmentsProvider>
+      <ChatWrapper>
         <ChatContainer>
           <MessageList
             messages={stableMessages ?? []}
             thread={thread}
             progressAgent={agentProgress}
           />
-          <InputArea
-            onSend={handleSendMessage}
-            onContinue={handleContinue}
-            isLoading={thread.isLoading}
-            interrupt={thread.interrupt}
-          />
+          <InputArea thread={thread} />
         </ChatContainer>
-    </ChatWrapper>
+      </ChatWrapper>
+    </SelectedAttachmentsProvider>
   );
 };
 

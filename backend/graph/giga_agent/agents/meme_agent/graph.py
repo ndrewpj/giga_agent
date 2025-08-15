@@ -14,7 +14,9 @@ from langgraph_sdk import get_client
 from giga_agent.agents.meme_agent.config import MemeState, ConfigSchema
 from giga_agent.agents.meme_agent.nodes.images import image_node
 from giga_agent.agents.meme_agent.nodes.text import text_node
+from giga_agent.utils.llm import is_llm_image_inline
 from giga_agent.utils.env import load_project_env
+from giga_agent.utils.messages import filter_tool_calls
 
 load_project_env()
 
@@ -43,9 +45,7 @@ async def create_meme(
     """
     from giga_agent.config import llm
 
-    last_mes = state["messages"][-1].model_copy()
-    last_mes.tool_calls = None
-    last_mes.additional_kwargs["function_call"] = None
+    last_mes = filter_tool_calls(state["messages"][-1])
     client = get_client(url=os.getenv("LANGGRAPH_API_URL", "http://0.0.0.0:2024"))
     thread = await client.threads.create()
     thread_id = thread["thread_id"]
@@ -81,16 +81,19 @@ async def create_meme(
                     "node": list(chunk.data.keys())[0],
                 },
             )
-    uploaded_file = await llm.aupload_file(
-        ("image.png", base64.b64decode(state["meme_image"]))
-    )
+    if is_llm_image_inline():
+        uploaded_file_id = (
+            await llm.aupload_file(("image.png", base64.b64decode(state["meme_image"])))
+        ).id_
+    else:
+        uploaded_file_id = str(uuid.uuid4())
     return {
         "meme_text": state["meme_idea"],
-        "message": f'В результате выполнения было сгенерировано изображение {uploaded_file.id_}. Покажи его пользователю через "![мем](graph:{uploaded_file.id_})" и напиши куда двигаться пользователю дальше',
+        "message": f'В результате выполнения было сгенерировано изображение {uploaded_file_id}. Покажи его пользователю через "![мем](graph:{uploaded_file_id})" и напиши куда двигаться пользователю дальше',
         "giga_attachments": [
             {
                 "type": "image/png",
-                "file_id": uploaded_file.id_,
+                "file_id": uploaded_file_id,
                 "data": state["meme_image"],
             }
         ],

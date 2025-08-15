@@ -1,18 +1,11 @@
 from typing import TypedDict, List, Union, Literal
 
 from langchain_core.messages import AnyMessage
-from langchain_gigachat import GigaChat
 
 from giga_agent.agents.podcast.schema import ShortDialogue, MediumDialogue
+from giga_agent.utils.llm import load_llm
 
-podcast_llm = GigaChat(
-    model="GigaChat-2-Max",
-    profanity_check=False,
-    timeout=120,
-    disable_streaming=True,
-    top_p=0.1,
-    streaming=False,
-)
+podcast_llm = load_llm().with_config(tags=["nostream"])
 
 
 class ConfigSchema(TypedDict):

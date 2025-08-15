@@ -1,13 +1,6 @@
-from langchain_gigachat import GigaChat
 from langchain_core.output_parsers.json import JsonOutputParser
 
-llm = GigaChat(
-    profanity_check=False,
-    verify_ssl_certs=False,
-    timeout=100000,
-    max_tokens=32000,
-    model="GigaChat-2-Pro",
-)
+from giga_agent.utils.llm import load_llm
 
 
 async def summarize(texts: list[str], addition: str = "") -> str:
@@ -18,6 +11,7 @@ async def summarize(texts: list[str], addition: str = "") -> str:
         texts: Список текстов на суммаризацию
         addition: На что во время суммаризации стоит обратить внимание
     """
+    llm = load_llm(tag="fast")
     if addition:
         addition = f"\nОбрати особое внимание на {addition}\n"
     texts = "\n----\n".join(texts)
@@ -29,10 +23,12 @@ async def summarize(texts: list[str], addition: str = "") -> str:
 
 
 async def ask(prompt: str) -> str:
+    llm = load_llm(tag="fast")
     return (await llm.ainvoke(input=[("system", prompt)])).content
 
 
 async def ask_structure(prompt: str, json_schema: str) -> dict:
+    llm = load_llm(tag="fast")
     return parse_partial_json(
         (
             await llm.ainvoke(

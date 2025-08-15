@@ -1,5 +1,6 @@
 import asyncio
 import json
+import uuid
 
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -12,6 +13,7 @@ from langchain_core.runnables import (
 from giga_agent.agents.landing_agent.config import LandingState, llm
 from giga_agent.agents.landing_agent.tools import done
 from giga_agent.agents.landing_agent.prompts.ru import CODER_PROMPT
+from giga_agent.utils.lang import LANG
 from giga_agent.output_parsers.html_parser import HTMLParser
 
 prompt = ChatPromptTemplate.from_messages(
@@ -55,7 +57,7 @@ prompt = ChatPromptTemplate.from_messages(
         #         ("ai", "Ок. Готов приступать к новой работе"),
         MessagesPlaceholder("messages"),
     ]
-)
+).partial(language=LANG)
 
 coder_chain = (
     prompt
@@ -92,10 +94,11 @@ async def coder_node(state: LandingState, config: RunnableConfig):
     )
     if config["configurable"].get("print_messages", False):
         resp["message"].pretty_print()
+    action = state["agent_messages"][-1].tool_calls[0]
     return {
         "coder_messages": [new_message, resp["message"]],
         "agent_messages": ToolMessage(
-            tool_call_id="123",
+            tool_call_id=action.get("id", str(uuid.uuid4())),
             content=json.dumps(
                 {
                     "code": resp["html"],

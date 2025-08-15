@@ -43,13 +43,17 @@ class OpenAIImageGen(ImageGen):
         semaphore: Optional[asyncio.Semaphore] = None,
         *,
         api_key: Optional[str] = None,
-        base_url: str = "https://api.openai.com/v1",
+        base_url: Optional[str] = None,
         timeout: float | None = 60.0,
         max_retries: int = 3,
     ) -> None:
         super().__init__(model=model, semaphore=semaphore)
         self._api_key: Optional[str] = api_key or os.getenv("OPENAI_API_KEY")
-        self._base_url = base_url
+        self._base_url = (
+            base_url
+            if base_url
+            else os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        )
         self._timeout = timeout
         self._max_retries = max_retries
         self._client: Optional[httpx.AsyncClient] = None
@@ -117,7 +121,9 @@ class OpenAIImageGen(ImageGen):
             await asyncio.sleep(2 ** (attempt - 1))
 
     @staticmethod
-    def _normalize_size_for_model(model: str, width: int, height: int) -> tuple[int, int]:
+    def _normalize_size_for_model(
+        model: str, width: int, height: int
+    ) -> tuple[int, int]:
         """Преобразует произвольные width×height к ближайшему поддерживаемому размеру.
 
         Учитывает ориентацию (горизонтальная/вертикальная/квадрат) и близость размеров.
@@ -147,9 +153,7 @@ class OpenAIImageGen(ImageGen):
 
         # Сначала ищем среди размеров с той же ориентацией, если такие есть
         same_orientation = [
-            (w, h)
-            for (w, h) in supported
-            if orientation(w, h) == requested_orientation
+            (w, h) for (w, h) in supported if orientation(w, h) == requested_orientation
         ]
 
         candidates = same_orientation if same_orientation else supported
@@ -160,5 +164,3 @@ class OpenAIImageGen(ImageGen):
 
         best = min(candidates, key=lambda s: distance(s[0], s[1]))
         return best
-
-

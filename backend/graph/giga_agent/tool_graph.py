@@ -20,10 +20,10 @@ from langgraph.types import interrupt
 
 from giga_agent.config import (
     AgentState,
-    llm,
     REPL_TOOLS,
     SERVICE_TOOLS,
     AGENT_MAP,
+    load_llm,
 )
 from giga_agent.prompts.few_shots import FEW_SHOTS_ORIGINAL, FEW_SHOTS_UPDATED
 from giga_agent.prompts.main_prompt import SYSTEM_PROMPT
@@ -31,9 +31,12 @@ from giga_agent.repl_tools.utils import describe_repl_tool
 from giga_agent.tool_server.tool_client import ToolClient
 from giga_agent.utils.env import load_project_env
 from giga_agent.utils.jupyter import JupyterClient
+from giga_agent.utils.lang import LANG
 from giga_agent.utils.python import prepend_code
 
 load_project_env()
+
+llm = load_llm(is_main=True)
 
 
 def generate_repl_tools_description():
@@ -60,11 +63,14 @@ prompt = ChatPromptTemplate.from_messages(
         else FEW_SHOTS_UPDATED
     )
     + [MessagesPlaceholder("messages", optional=True)]
-).partial(repl_inner_tools=generate_repl_tools_description())
+).partial(repl_inner_tools=generate_repl_tools_description(), language=LANG)
 
 
 def generate_user_info(state: AgentState):
-    return f"<user_info>\nТекущая дата: {datetime.today().strftime('%d.%m.%Y %H:%M')}\n</user_info>"
+    lang = ""
+    if not LANG.startswith("ru"):
+        lang = f"\nВыбранный язык пользователя: {LANG}\n"
+    return f"<user_info>\nТекущая дата: {datetime.today().strftime('%d.%m.%Y %H:%M')}{lang}</user_info>"
 
 
 def get_code_arg(message):
@@ -91,13 +97,15 @@ async def agent(state: AgentState):
         await client.execute(kernel_id, "function_results = []")
     if not tools:
         tools = await tool_client.get_tools()
-    ch = (prompt | llm.bind_tools(tools)).with_retry()
+    ch = (prompt | llm.bind_tools(tools, parallel_tool_calls=False)).with_retry()
     if state["messages"][-1].type == "human":
         user_input = state["messages"][-1].content
         files = state["messages"][-1].additional_kwargs.get("files", [])
         file_prompt = []
         for idx, file in enumerate(files):
-            file_prompt.append(f"""Файл {idx}\nЗагружен по пути: '{file['path']}'""")
+            file_prompt.append(
+                f"""Файл ![](graph:{idx})\nЗагружен по пути: '{file['path']}'"""
+            )
             if "file_id" in file:
                 file_prompt[
                     -1
@@ -144,7 +152,7 @@ async def tool_call(
     if value.get("type") == "comment":
         return {
             "messages": ToolMessage(
-                tool_call_id=str(uuid4()),
+                tool_call_id=action.get("id", str(uuid4())),
                 content=json.dumps(
                     {
                         "message": f'Пользователь оставил комментарий к твоему вызову инструмента. Прочитай его и реши, как действовать дальше: "{value.get("message")}"'
@@ -165,7 +173,7 @@ async def tool_call(
         if "code" not in action["args"] or not action["args"]["code"]:
             return {
                 "messages": ToolMessage(
-                    tool_call_id=str(uuid4()),
+                    tool_call_id=action.get("id", str(uuid4())),
                     content=json.dumps(
                         {"message": "Напиши код в своем сообщении!"},
                         ensure_ascii=False,
@@ -250,14 +258,15 @@ async def tool_call(
                     }
                 )
         message = ToolMessage(
-            tool_call_id=str(uuid4()),
+            tool_call_id=action.get("id", str(uuid4())),
             content=json.dumps(add_data, ensure_ascii=False),
             additional_kwargs={"tool_attachments": tool_attachments},
         )
     except Exception as e:
         traceback.print_exc()
         message = ToolMessage(
-            tool_call_id=str(uuid4()), content=_handle_tool_error(e, flag=True)
+            tool_call_id=action.get("id", str(uuid4())),
+            content=_handle_tool_error(e, flag=True),
         )
 
     return {

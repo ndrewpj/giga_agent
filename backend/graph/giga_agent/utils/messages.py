@@ -15,3 +15,14 @@ def filter_tool_messages(messages):
                 continue
         filtered_messages.append(msg)
     return filtered_messages
+
+
+def filter_tool_calls(message):
+    last_mes = message.model_copy()
+    last_mes.tool_calls = None
+    last_mes.additional_kwargs["function_call"] = None
+    if "tool_calls" in last_mes.additional_kwargs:
+        if not last_mes.content:
+            last_mes.content = "."
+        del last_mes.additional_kwargs["tool_calls"]
+    return last_mes

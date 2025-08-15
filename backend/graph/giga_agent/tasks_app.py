@@ -1,12 +1,15 @@
 import asyncio
+import base64
+import io
 import json
 import os
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse
 from sqlmodel import SQLModel, Field, select, func
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,6 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import sessionmaker
 
 from langgraph_sdk import get_client
+
+from giga_agent.utils.env import load_project_env
+from giga_agent.utils.llm import is_llm_image_inline
+
+from giga_agent.config import llm
 
 
 # --- Модель данных ---
@@ -195,3 +203,31 @@ async def get_task(html_id: str):
         return HTMLResponse(content=result["value"]["data"], status_code=200)
     else:
         raise HTTPException(404, "Page not found")
+
+
+@app.post("/upload/image/")
+async def upload_image(file: UploadFile = File(...)):
+    client = get_client()
+    file_bytes = await file.read()
+    if is_llm_image_inline():
+        uploaded_id = (
+            await llm.aupload_file(
+                (
+                    f"{uuid.uuid4()}.jpg",
+                    io.BytesIO(file_bytes),
+                )
+            )
+        ).id_
+    else:
+        uploaded_id = str(uuid.uuid4())
+    await client.store.put_item(
+        ("attachments",),
+        uploaded_id,
+        {
+            "file_id": uploaded_id,
+            "data": base64.b64encode(file_bytes).decode(),
+            "type": "image/png",
+        },
+        ttl=None,
+    )
+    return {"id": uploaded_id}

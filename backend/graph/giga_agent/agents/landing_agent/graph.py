@@ -24,6 +24,7 @@ from giga_agent.agents.landing_agent.nodes.image import image_node
 from giga_agent.agents.landing_agent.nodes.plan import plan_node
 from giga_agent.agents.landing_agent.tools import plan, image, coder, done
 from giga_agent.agents.landing_agent.prompts.ru import AGENT_PROMPT
+from giga_agent.utils.lang import LANG
 from giga_agent.utils.env import load_project_env
 from giga_agent.utils.messages import filter_tool_messages
 
@@ -33,8 +34,10 @@ load_project_env()
 async def agent(state: LandingState, config: RunnableConfig):
     prompt = ChatPromptTemplate.from_messages(
         [("system", AGENT_PROMPT), MessagesPlaceholder("messages")]
+    ).partial(language=LANG)
+    chain = prompt | llm.bind_tools(
+        [plan, image, coder, done], parallel_tool_calls=False
     )
-    chain = prompt | llm.bind_tools([plan, image, coder, done])
     resp = await chain.ainvoke(
         {"messages": filter_tool_messages(state.get("agent_messages", []))},
         config={"callbacks": []},
@@ -57,8 +60,11 @@ async def done_node(state: LandingState, config: RunnableConfig):
     resp = state["agent_messages"][-1]
     if resp.tool_calls and resp.tool_calls[0]["name"] == "done":
         done_str = resp.tool_calls[0]["args"]["message"]
+        action = resp.tool_calls[0]
     else:
         done_str = resp.content
+        action = {}
+
     if config["configurable"].get("save_files", False):
         await asyncio.to_thread(Path("html").mkdir, parents=True, exist_ok=True)
         await asyncio.to_thread(write_to_file, "html/index.html", "w", state["html"])
@@ -68,7 +74,7 @@ async def done_node(state: LandingState, config: RunnableConfig):
             )
     return {
         "agent_messages": ToolMessage(
-            tool_call_id="123",
+            tool_call_id=action.get("id", str(uuid.uuid4())),
             content=json.dumps({"success": True}, ensure_ascii=False),
         ),
         "done": done_str,
@@ -131,6 +137,7 @@ async def create_landing(
         thread = await client.threads.create()
         thread_id = thread["thread_id"]
     result_state = {}
+    action = state["messages"][-1].tool_calls[0]
     async for chunk in client.runs.stream(
         thread_id=thread_id,
         assistant_id="landing",
@@ -148,7 +155,7 @@ async def create_landing(
             "plan_messages": state["messages"][:]
             + [
                 ToolMessage(
-                    tool_call_id=str(uuid.uuid4()),
+                    tool_call_id=action.get("id", str(uuid.uuid4())),
                     content=json.dumps(
                         {"message": "Приступаю к работе!"},
                         ensure_ascii=False,

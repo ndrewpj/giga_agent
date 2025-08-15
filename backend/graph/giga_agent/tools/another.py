@@ -1,4 +1,5 @@
 import base64
+import uuid
 from typing import List, Annotated
 
 from langchain_core.output_parsers import JsonOutputParser
@@ -12,6 +13,9 @@ from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 from pydantic import Field
 
+from langgraph_sdk import get_client
+
+from giga_agent.utils.llm import is_llm_image_inline, load_llm
 from giga_agent.generators.image import load_image_gen
 from giga_agent.prompts.image import IMAGE_PROMPT
 
@@ -51,7 +55,7 @@ async def suggest_plan(query: str, state: Annotated[dict, InjectedState]):
     Args:
         query: Задача пользователя
     """
-    from giga_agent.config import llm
+    llm = load_llm().with_config(tags=["nostream"])
 
     return (
         await llm.ainvoke(
@@ -135,34 +139,68 @@ async def ask_about_image(
         image_id: ID изображения
         question: Запрос для анализа изображения. Детально пропиши все, что ты хочешь узнать от изображения. Это полноценный промпт к V-LLM, поэтому используй все мощности нейросетей!
     """
-    from giga_agent.config import llm
+    llm = load_llm().with_config(tags=["nostream"])
 
+    if image_id.startswith("graph:"):
+        image_id = image_id[len("graph:") :]
     if image_id not in state["file_ids"]:
         return f"Изображение c ID {image_id} не найдено"
-    return (
-        (
-            await llm.ainvoke(
-                [
-                    HumanMessage(
-                        content=question,
-                        additional_kwargs={"attachments": [image_id]},
-                    ),
-                ]
-            )
-        ).content
-        + "\nИспользуй этот инструмент итеративно, если в ответе недостаточно информации, сделай уточняющий запрос!"
-    )
+    if is_llm_image_inline():
+        return (
+            (
+                await llm.ainvoke(
+                    [
+                        HumanMessage(
+                            content=question,
+                            additional_kwargs={"attachments": [image_id]},
+                        ),
+                    ]
+                )
+            ).content
+            + "\nИспользуй этот инструмент итеративно, если в ответе недостаточно информации, сделай уточняющий запрос!"
+        )
+    else:
+        client = get_client()
+        result = await client.store.get_item(("attachments",), key=image_id)
+        data = (
+            result["value"]["img_data"]
+            if "img_data" in result["value"]
+            else result["value"]["data"]
+        )
+        return (
+            (
+                await llm.ainvoke(
+                    [
+                        HumanMessage(
+                            content=[
+                                {
+                                    "type": "text",
+                                    "text": question,
+                                },
+                                {
+                                    "type": "image",
+                                    "source_type": "base64",
+                                    "data": data,
+                                    "mime_type": "image/png",
+                                },
+                            ]
+                        ),
+                    ]
+                )
+            ).content
+            + "\nИспользуй этот инструмент итеративно, если в ответе недостаточно информации, сделай уточняющий запрос!"
+        )
 
 
 @tool
-async def generate_image(theme: str):
+async def gen_image(theme: str):
     """
     Генерирует изображение
 
     Args:
         theme: Тема для генерации изображения
     """
-    from giga_agent.config import llm
+    llm = load_llm().with_config(tags=["nostream"])
 
     img_chain = (
         IMAGE_PROMPT
@@ -180,14 +218,19 @@ async def generate_image(theme: str):
     image_data = await generator.generate_image(
         i["description"], i["width"], i["height"]
     )
-    uploaded_file = await llm.aupload_file(("image.png", base64.b64decode(image_data)))
+    if is_llm_image_inline():
+        uploaded_file_id = (
+            await llm.aupload_file(("image.png", base64.b64decode(image_data)))
+        ).id_
+    else:
+        uploaded_file_id = str(uuid.uuid4())
     return {
         "image_description": i["description"],
-        "message": f'В результате выполнения было сгенерировано изображение {uploaded_file.id_}. Покажи его пользователю через "![описание изображения](graph:{uploaded_file.id_})"',
+        "message": f'В результате выполнения было сгенерировано изображение {uploaded_file_id}. Покажи его пользователю через "![описание изображения](graph:{uploaded_file_id})"',
         "giga_attachments": [
             {
                 "type": "image/png",
-                "file_id": uploaded_file.id_,
+                "file_id": uploaded_file_id,
                 "data": image_data,
             }
         ],

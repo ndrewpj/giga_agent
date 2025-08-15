@@ -3,6 +3,7 @@ import mimetypes
 import os
 import uuid
 from pathlib import Path
+import requests
 
 from fastapi import FastAPI, HTTPException, File, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +11,7 @@ from fastapi.responses import FileResponse
 from langchain_gigachat import GigaChat
 from dotenv import load_dotenv
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 load_dotenv("../../.env")
 
@@ -76,16 +77,38 @@ def upload(file: UploadFile = File(...)):
             while contents := file.file.read(1024 * 1024):
                 f.write(contents)
         if file.content_type.startswith("image/"):
-            image = Image.open(path).convert("RGB")
+            image = ImageOps.exif_transpose(Image.open(path))
+            max_side = 1024
+            if max(image.size) > max_side:
+                image.thumbnail((max_side, max_side), Image.LANCZOS)
+
             buf = io.BytesIO()
-            image.save(buf, format="JPEG")
-            uploaded = llm.upload_file(
-                (
-                    f"{uuid.uuid4()}.jpg",
-                    buf,
-                )
+            image.convert("RGB").save(
+                buf,
+                format="JPEG",
+                quality=85,
+                optimize=True,
+                progressive=True,
             )
-            return {"path": path, "file_id": uploaded.id_}
+            buf.seek(0)
+            api_url_base = os.getenv("LANGGRAPH_API_URL", "").rstrip("/")
+            if not api_url_base:
+                raise RuntimeError("LANGGRAPH_API_URL is not set")
+            url = f"{api_url_base}/upload/image/"
+            response = requests.post(
+                url,
+                files={
+                    "file": (
+                        f"{uuid.uuid4()}.jpg",
+                        buf,
+                        "image/jpeg",
+                    )
+                },
+                timeout=60,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return {"path": path, "file_id": data.get("id")}
     except Exception as e:
         raise e
     finally:

@@ -1,18 +1,11 @@
 from typing import TypedDict, Annotated, List
 
 from langchain_core.messages import AnyMessage
-from langchain_gigachat import GigaChat
 from langgraph.graph import add_messages
 
-llm = GigaChat(
-    model="GigaChat-2-Max",
-    verify_ssl_certs=False,
-    profanity_check=False,
-    timeout=120,
-    disable_streaming=True,
-    top_p=0.6,
-    streaming=False,
-)
+from giga_agent.utils.llm import load_llm
+
+llm = load_llm().with_config(tags=["nostream"])
 
 
 class ConfigSchema(TypedDict):

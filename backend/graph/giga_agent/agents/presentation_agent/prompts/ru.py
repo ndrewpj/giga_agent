@@ -1,5 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
+from giga_agent.utils.lang import LANG
+
 IMAGE_PROMPT = ChatPromptTemplate.from_messages(
     [
         (
@@ -96,12 +98,17 @@ PLAN_PROMPT = ChatPromptTemplate.from_messages(
 Твоя задача создать план презентации исходя из предыдущей переписки с пользователем.
 Ты начинаешь работу когда пользователь явно просит создать план презентации.
 
+### ЯЗЫК ОБЩЕНИЯ
+
+Ты должен общаться с пользователем на выбранном им языке.
+Язык пользователя: {language}.
+
 """
             + FORMAT,
         ),
         MessagesPlaceholder("messages"),
     ]
-)
+).partial(language=LANG)
 
 SLIDE_PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -135,6 +142,11 @@ SLIDE_PROMPT = ChatPromptTemplate.from_messages(
 
 * Контраст текста с фоном ≥ 4.5:1 (WCAG AA).
 * Фон — градиенты из бренд-гайдлайна; задавай через `data-background-gradient`.
+
+## ЯЗЫК ОБЩЕНИЯ
+
+Ты должен общаться с пользователем на выбранном им языке.
+Язык пользователя: {language}.
 
 ## Графики
 
@@ -200,4 +212,4 @@ SLIDE_PROMPT = ChatPromptTemplate.from_messages(
         ),
         MessagesPlaceholder("messages"),
     ]
-)
+).partial(language=LANG)

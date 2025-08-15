@@ -3,7 +3,6 @@ from operator import add
 from typing import TypedDict, Annotated, List
 
 from langchain_core.messages import AnyMessage
-from langchain_gigachat import GigaChat
 from langgraph.graph import add_messages
 
 from giga_agent.repl_tools.llm import summarize
@@ -11,7 +10,7 @@ from giga_agent.repl_tools.sentiment import predict_sentiments, get_embeddings
 from giga_agent.tools.another import (
     search,
     ask_about_image,
-    generate_image,
+    gen_image,
 )
 from giga_agent.tools.github import (
     get_workflow_runs,
@@ -30,6 +29,7 @@ from giga_agent.agents.podcast.graph import podcast_generate
 from giga_agent.agents.presentation_agent.graph import generate_presentation
 from giga_agent.agents.gis_agent.graph import city_explore
 from giga_agent.utils.env import load_project_env
+from giga_agent.utils.llm import load_llm
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -44,19 +44,7 @@ class AgentState(TypedDict):  # noqa: D101
     tools: list
 
 
-llm = GigaChat(
-    model="GigaChat-2-Max",
-    profanity_check=False,
-    verify_ssl_certs=False,
-    timeout=os.getenv("MAIN_GIGACHAT_TIMEOUT", 70),
-    max_tokens=1280000,
-    user=os.getenv("MAIN_GIGACHAT_USER"),
-    password=os.getenv("MAIN_GIGACHAT_PASSWORD"),
-    credentials=os.getenv("MAIN_GIGACHAT_CREDENTIALS"),
-    scope=os.getenv("MAIN_GIGACHAT_SCOPE"),
-    base_url=os.getenv("MAIN_GIGACHAT_BASE_URL"),
-    top_p=os.getenv("MAIN_GIGACHAT_TOP_P", 0.5),
-)
+llm = load_llm()
 
 if os.getenv("REPL_FROM_MESSAGE", "1") == "1":
     from giga_agent.tools.repl.message_tool import python
@@ -67,7 +55,7 @@ else:
 MCP_CONFIG = {}
 
 TOOLS_REQUIRED_ENVS = {
-    generate_image.name: ["IMAGE_GEN_NAME"],
+    gen_image.name: ["IMAGE_GEN_NAME"],
     get_urls.name: ["TAVILY_API_KEY"],
     search.name: ["TAVILY_API_KEY"],
     lean_canvas.name: [],
@@ -118,6 +106,8 @@ SERVICE_TOOLS = [
 ]
 
 AGENTS = [
+    ask_about_image,
+    gen_image,
     get_urls,
     search,
     lean_canvas,
@@ -133,9 +123,6 @@ TOOLS = filter_tools_by_env(
         # REPL
         python,
         shell,
-        # SEARCH TOOLS
-        ask_about_image,
-        generate_image,
     ]
     + AGENTS
     + SERVICE_TOOLS

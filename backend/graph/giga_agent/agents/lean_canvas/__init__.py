@@ -10,16 +10,10 @@ from langgraph.graph.ui import push_ui_message
 from langgraph_sdk import get_client
 from typing_extensions import TypedDict, Annotated
 
-from langchain_gigachat import GigaChat
+from giga_agent.utils.lang import LANG
+from giga_agent.utils.llm import load_llm
 
-
-llm = GigaChat(
-    model="GigaChat-2-Max",
-    profanity_check=False,
-    top_p=0,
-    timeout=120,
-    disable_streaming=True,
-)
+llm = load_llm().with_config(tags=["nostream"])
 
 
 class LeanGraphState(TypedDict):
@@ -77,15 +71,21 @@ async def ask_llm(state: LeanGraphState, question: str, config: RunnableConfig) 
     <STATE>
     {state}
     </STATE>
+    
+    ЯЗЫК ОБЩЕНИЯ
+
+    Ты должен общаться с пользователем на выбранном им языке.
+    Язык пользователя: {language}.
 
     Ответь на вопрос: {question}
     Отвечай коротко, не более 1-2 коротких предложений и обязательно учти фидбек от пользователя (feedback), если он задан. Оформи ответ в виде буллетов.
     """
 
-    prompt = ChatPromptTemplate.from_messages([("system", TEMPLATE)])
+    prompt = ChatPromptTemplate.from_messages([("system", TEMPLATE)]).partial(
+        language=LANG
+    )
 
-    model = config["configurable"].get("model", "GigaChat-2-Max")
-    chain = prompt | llm.bind(model=model) | StrOutputParser()
+    chain = prompt | llm | StrOutputParser()
     return await chain.ainvoke({"state": state_to_string(state), "question": question})
 
 
@@ -183,6 +183,11 @@ COMPETITION_ANALYSIS_TEMPLATE = """Ты работаешь над таблице
 {search_results}
 </SEARCH_RESULTS>
 
+ЯЗЫК ОБЩЕНИЯ
+
+Ты должен общаться с пользователем на выбранном им языке.
+Язык пользователя: {language}.
+
 Выведи только следующую информацию в формате JSON:
 {format_instructions}"""
 
@@ -197,7 +202,7 @@ async def check_unique(
     parser = PydanticOutputParser(pydantic_object=CompetitorsAnalysisResult)
     prompt = ChatPromptTemplate.from_messages(
         [("system", COMPETITION_ANALYSIS_TEMPLATE)]
-    ).partial(format_instructions=parser.get_format_instructions())
+    ).partial(format_instructions=parser.get_format_instructions(), language=LANG)
 
     search_results_text = await TavilySearch().arun(state["unique_value_proposition"])
 
@@ -259,6 +264,11 @@ class UserFeedback(BaseModel):
 FEEDBACK_TEMPLATE = """Ты работаешь над таблицей Lean Canvas. Ты уже сгенерировал версию Lean Canvas и получил фидбек от пользователя.
 Тебе нужно разобраться фидбек и понять, как действовать дальше, заполнив таблицу с ответом.
 
+ЯЗЫК ОБЩЕНИЯ
+
+Ты должен общаться с пользователем на выбранном им языке.
+Язык пользователя: {language}.
+
 Учитывай уже заполненные части таблицы Lean Canvas и главную задачу пользователя (main_task).
 <STATE>
 {state}
@@ -286,7 +296,7 @@ async def get_feedback(
 
     parser = PydanticOutputParser(pydantic_object=UserFeedback)
     prompt = ChatPromptTemplate.from_messages([("system", FEEDBACK_TEMPLATE)]).partial(
-        format_instructions=parser.get_format_instructions()
+        format_instructions=parser.get_format_instructions(), language=LANG
     )
 
     chain = prompt | llm | parser
