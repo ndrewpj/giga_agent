@@ -1,37 +1,85 @@
 # GigaAgent
-Универсальный агент-оркестратор, который объединяет REPL, внешние инструменты и субагентов для решения самых разных задач.
 
-Что умеет GigaAgent:
+GigaAgent — это агент-оркестратор для решения широкого круга задач.
+Например, он может [придумать мем](docs/examples/memes/chat.pdf), [описать бизнес-модель стартапа](docs/examples/lean_canvas/lean_canvas.pdf) или [создать лендинг](docs/examples/changelog_landing/changelog_landing.pdf).
+Для этого GigaAgent использует субагентов, среду для исполнения кода и сторонние сервисы.
 
--  Работает с разными LLM (GigaChat, ChatGPT, Anthropic и остальные которые есть в фреймворке LangChain)
--  REPL-среда для запуска кода прямо в чате (jupyter-like)
--  Интеграция с внешними сервисами: VK, GitHub, 2GIS, OpenWeatherMap и др.
--  Инструменты для анализа данных, генерации изображений, мемов, создания презентаций и лендингов
--  Поддержка нескольких провайдеров для генерации картинок (GigaChat, FusionBrain, OpenAI)
--  Гибкая настройка через Docker и .env — запускайте локально или разверните у себя в облаке
+> [!CAUTION]
+> GigaAgent может писать и исполнять код без участия пользователя.
+> Учитывая раннюю стадию разработки проекта, это может быть опасно.
+> Используйте агента с большой осторожностью.
 
-**Важно:** Это **ранняя-alpha** версия проекта *примера универсального агента*, вы используете данное решение на свой страх и риск. Агент может писать код и выполнять его в процессе работы независимо от пользователя, вы используете данное ПО на свой страх и риск.
+GigaAgent умеет:
 
-**Демо:**
+- работать с разными моделями, [доступными в LangChain](https://python.langchain.com/docs/integrations/chat/#all-chat-models): GigaChat, ChatGPT, Anthropic и другими;
+- исполнять код в чате с помощью в REPL-среды, подобной [блокнотам jupyter](https://jupyter.org/);
+- обмениваться данными со сторонними сервисами: VK, GitHub, 2GIS и другими;
+- использовать инструменты для анализа данных, генерации изображений, создания презентаций и лендингов;
+- генерировать изображения с помощью разных провайдеров: GigaChat, FusionBrain, OpenAI;
+- работать локально или в облаке, с помощью Docker-контейнера. 
+
+## Демо
 
 <img src="docs/images/demo.gif" width=500>
 
-## Примеры работ
-- [Кластеризация ВК комментариев](docs/examples/cluster_comments/clusters_ru.pdf)
-- [Анализ настроений комментариев ВК и вывод основных жалоб](docs/examples/sentiment_analysis/sentiment_analysis.pdf)
-- [Формирование CHANGELOG из последних закрытых PR'ов и создание на основе него сайта](docs/examples/changelog_landing/changelog_landing.pdf)
+Примеры работы с GigaAgent в формате PDF:
 
-Посмотреть примеры работы под-агентов и как их создавать можно [здесь](SUBAGENTS.md)
+- [кластеризация комментариев в VK](docs/examples/cluster_comments/clusters_ru.pdf);
+- [анализ настроений комментариев в VK и вывод основных жалоб](docs/examples/sentiment_analysis/sentiment_analysis.pdf);
+- [создание сайта со списком изменений, созданным на основе последних закрытых PR](docs/examples/changelog_landing/changelog_landing.pdf).
 
-## Схема работы
-<img src="docs/images/schema.png" width=500>
+> [!NOTE]
+> Примеры работы субагентов, а также подробная информация о них — в разделе [Субагенты](SUBAGENTS.md).
+
+## Запуск
+
+### Запуск (через Docker)
+1. `pip install langgraph-cli`
+2. `make init_files`
+3. Заполнить .docker.env в корне проекта
+4. `make build_graph`
+5. `docker compose up -d`
+6. Проект запущен на http://localhost:8502
+
+**Обновление**: При обновлении репозитория начинайте с шага 3
+
+### Локальный запуск
+Для локального запуска желательно иметь следующие свободные порты: **2024**, **8811**, **9090**, **9092**, **3000**
+
+Также должен быть поставлен [uv](https://docs.astral.sh/uv/)
+
+Если освободить эти порты нельзя, то поправьте .env переменные: 
+1. make init_files
+2. Заполнить .env в корне проекта
+3. Запуск REPL
+   * `cd backend/repl`
+   * `uv sync`
+   * `make run`
+4. Запуск Upload Server на REPL
+   * `cd backend/repl`
+   * `make run_u`
+5. Запуск ToolServer
+   * `cd backend/graph`
+   * `uv sync`
+   * `make run_tool_server`
+6. Запуск LangGraph
+   * `cd backend/graph`
+   * `make run_graph`
+7. Запуск frontend
+   * `cd front`
+   * `make dev`
+
+## Архитектура проекта
+
+<img src="docs/images/diagram.png" width=500>
 
 - **GigaAgent** — основной агент
+- **SubAgents** — под-агенты, выполняющие узко-направленные задачи. (Создание презентаций, Создание лендингов и т.д.)
 - **REPL** — отдельный контейнер, который может выполнять код в jupyter-like среде, написанный LLM
 - **ToolServer** — сервер, исполняющий инструменты подключенные к LLM или закрытый код (или код завязанный на секретных env переменных), который мы не хотим шарить пользователю в REPL среде.
 - **LLM Tools** — инструменты LLM (поиск, работа с данными ВК, работа с гитхабом и т.д.)
 - **REPL Tools** — инструменты REPL (*predict_sentiments*, *get_embeddings*, *summarize* + инструменты LLM). Эти методы могут быть вызваны из REPL и завязаны на LLM API. Мы не хотим, чтобы пользователь в среде REPL, мог получить ключи с доступами к API
-- **SubAgents** — под-агенты, выполняющие узко-направленные задачи. (Создание презентаций, Создание лендингов и т.д.)
+
 
 ## Шаблоны .env переменных
 Вы можете взять пред-настроенные .env / .docker.env файлы под определенных провайдеров здесь:
@@ -44,7 +92,7 @@
 * **GIGA_AGENT_LLM_FAST** — дешевая / быстрая LLM, на которой происходить скрейпинг ссылок и вызов LLM через REPL среду.
 
 Выбор происходит на основе метода LangChain [init_chat_model](https://python.langchain.com/api_reference/langchain/chat_models/langchain.chat_models.base.init_chat_model.html).
-с небольшой правкой возможности выбора GigaChat в качестве основной LLM.
+C небольшой правкой возможности выбора GigaChat в качестве основной LLM.
 
 В проект предустановлены библиотеки для работы GigaChat, OpenAI. Для работы остальных LLM вам нужно будет поставить их в папке `backend/graph` с помощью `uv add`
 
@@ -52,9 +100,9 @@
 * `GIGA_AGENT_LLM="gigachat:GigaChat-2-Max"` — для выбора модели GigaChat-2-Max в качестве основной
 * `GIGA_AGENT_LLM="openai:gpt-4o"` — для выбора модели gpt-4o в качестве основной
 
-По такому же принципу выбираются модель эмбедингов `GIGA_AGENT_EMBEDDINGS`.
+По такому же принципу выбирается модель для векторного представления текстов `GIGA_AGENT_EMBEDDINGS`.
 
-Также в проекте есть простая модель для оценки настроения текста на основе эмбендингов LLM с помощью `GIGA_AGENT_SENTIMENT_MODEL`. 
+Также в проекте есть простая модель для оценки настроения текста на основе эмбеддингов LLM с помощью `GIGA_AGENT_SENTIMENT_MODEL`. 
 Допустим это можно применять для анализа настроений комментариев.
 Модели созданы на основе GigaChat модели `EmbeddingsGigaR` и модели OpenAI `text-embedding-3-small`. 
 Создать свою мини модель под конкретную модель можно в ноутбуке [sentiment_model.ipynb](backend/graph/giga_agent/repl_tools/models/sentiment_model.ipynb)
@@ -89,44 +137,8 @@
 * `REPL_FROM_MESSAGE` — ставьте `0` если код в REPL будет браться из аргумента функции. `1` — если код берется из сообщения. Иногда GigaChat не может нормально прописывать сложный код в аргументе функции.
 * `MAIN_GIGACHAT_*` — пропишите настройки подключения GigaChat как в примерах [отсюда](env_examples/gigachat); Это настройка основной LLM, которая крутится в главном графе. Настройки, которые начинаются не с MAIN_ идут в под-агенты. Возможно в будущем уберем.
 
-## Запуск (через Docker)
-1. `pip install langgraph-cli`
-2. `make init_files`
-3. Заполнить .docker.env в корне проекта
-4. `make build_graph`
-5. `docker compose up -d`
-6. Проект запущен на http://localhost:8502
-
-**Обновление**: При обновлении репозитория начинайте с шага 3
-
-## Локальный запуск
-Для локального запуска желательно иметь следующие свободные порты: **2024**, **8811**, **9090**, **9092**, **3000**
-
-Также должен быть поставлен [uv](https://docs.astral.sh/uv/)
-
-Если освободить эти порты нельзя, то поправьте .env переменные: 
-1. make init_files
-2. Заполнить .env в корне проекта
-3. Запуск REPL
-   * `cd backend/repl`
-   * `uv sync`
-   * `make run`
-4. Запуск Upload Server на REPL
-   * `cd backend/repl`
-   * `make run_u`
-5. Запуск ToolServer
-   * `cd backend/graph`
-   * `uv sync`
-   * `make run_tool_server`
-6. Запуск LangGraph
-   * `cd backend/graph`
-   * `make run_graph`
-7. Запуск frontend
-   * `cd front`
-   * `make dev`
-
-## Внешние сервисы
-GigaAgent подключен к внешним сервисам, поэтому для корректной работы некоторых сценариев нужно получить их API ключи.
+## Работа со сторонними сервисами
+GigaAgent подключен к сторонним сервисам, поэтому для корректной работы некоторых сценариев нужно получить их API ключи.
 
 Если не заполнить API-ключ сервиса, то тулы, которые зависят от него, отключатся от LLM.
 Также можно отключить тулы/агентов в файле [config](backend/graph/giga_agent/config.py) в переменных **SERVICE_TOOLS**/**AGENTS**/**TOOLS**
@@ -161,6 +173,7 @@ https://docs.2gis.com/ru/platform-manager/overview
 https://developers.sber.ru/portal/products/smartspeech
 
 ### OpenWeatherMap (получение погоды)
+
 Тулы/агенты, которые зависят от сервиса: **weather**
 
 https://openweathermap.org/api/one-call-3
