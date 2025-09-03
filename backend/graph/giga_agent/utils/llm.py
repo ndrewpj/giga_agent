@@ -59,8 +59,12 @@ _EMBEDDINGS_SINGLETON: Optional[object] = None
 
 def load_llm(tag: str = None, is_main: bool = False):
     env_key = get_agent_env(tag)
-    if env_key in _LLM_SINGLETONS:
-        return _LLM_SINGLETONS[env_key]
+    # TODO: Поправить логику загрузки LLM кредов (сейчас это вообще что-то страшное)
+    singleton_key = env_key
+    if is_main:
+        singleton_key = "MAIN_" + singleton_key
+    if singleton_key in _LLM_SINGLETONS:
+        return _LLM_SINGLETONS[singleton_key]
 
     llm_str = os.getenv(env_key)
     if llm_str is None:
@@ -71,7 +75,7 @@ def load_llm(tag: str = None, is_main: bool = False):
     else:
         llm = init_chat_model(llm_str)
 
-    _LLM_SINGLETONS[env_key] = llm
+    _LLM_SINGLETONS[singleton_key] = llm
     return llm
 
 

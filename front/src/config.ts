@@ -23,7 +23,7 @@ export const TOOL_MAP = {
   create_meme: "Агент Мемов",
   get_urls: "Скачивание ссылок",
   city_explore: "Исследователь города",
-  generate_image: "Генерация изображения"
+  gen_image: "Генерация изображения",
 };
 
 export const PROGRESS_AGENTS = {
