@@ -1,4 +1,4 @@
-from langchain_core.messages import ToolMessage, AIMessage
+from langchain_core.messages import ToolMessage
 
 
 def filter_tool_messages(messages):
@@ -21,6 +21,7 @@ def filter_tool_calls(message):
     last_mes = message.model_copy()
     last_mes.tool_calls = None
     last_mes.additional_kwargs["function_call"] = None
+    last_mes.additional_kwargs["functions_state_id"] = None
     if "tool_calls" in last_mes.additional_kwargs:
         if not last_mes.content:
             last_mes.content = "."
