@@ -66,6 +66,7 @@ GigaAgent умеет:
    * `cd backend/graph`
    * `make run_graph`
 7. Запуск frontend
+   * `npm init`
    * `cd front`
    * `make dev`
 
