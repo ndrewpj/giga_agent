@@ -134,12 +134,12 @@ async def create_landing(
     """
     client = get_client(url=os.getenv("LANGGRAPH_API_URL", "http://0.0.0.0:2024"))
     if not thread_id:
-        thread = await client.threads.create()
-        thread_id = thread["thread_id"]
+        thread_id = str(uuid.uuid4())
     result_state = {}
     action = state["messages"][-1].tool_calls[0]
     async for chunk in client.runs.stream(
         thread_id=thread_id,
+        if_not_exists="create",
         assistant_id="landing",
         input={
             "agent_messages": [
