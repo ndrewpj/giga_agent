@@ -108,7 +108,8 @@ async def audio_gen(state: PodcastState):
         transcript += speaker_label + "\n\n"
         total_characters += len(line.text)
         sber_auth_token = os.getenv("SALUTE_SPEECH")
-        salute_access_token = await get_sber_tts_token(sber_auth_token)
+        salute_speech_scope = os.getenv("SALUTE_SPEECH_SCOPE", "SALUTE_SPEECH_PERS")
+        salute_access_token = await get_sber_tts_token(sber_auth_token, scope=salute_speech_scope)
         try:
             audio_data = await generate_podcast_audio(
                 line.text, salute_access_token, line.speaker
