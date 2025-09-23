@@ -224,7 +224,7 @@ async def tool_call(
         else:
             add_data = result
         tool_attachments = []
-        if "giga_attachments" in result:
+        if isinstance(result, dict) and "giga_attachments" in result:
             add_data = result
             attachments = result.pop("giga_attachments")
             file_ids = [attachment["file_id"] for attachment in attachments]
