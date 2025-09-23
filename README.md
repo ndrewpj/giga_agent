@@ -247,6 +247,22 @@ https://developers.sber.ru/portal/products/smartspeech
 
 https://openweathermap.org/api/one-call-3
 
+## Добавление MCP тулов
+> На данный момент поддержка MCP находится в разработке. Часть серверов может не поддерживаться или работать только частично.
+
+Для подключения MCP сервера добавьте его конфигурацию в файл `backend/graph/giga_agent/config.py` в словарь `MCP_CONFIG`. 
+
+Пример подключения MCP-сервера [apple-shortcuts](https://github.com/recursechat/mcp-server-apple-shortcuts), который дает агенту доступ к вызова быстрых команд MacOS.
+```python
+MCP_CONFIG = {
+    "apple-shortcuts": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "mcp-server-apple-shortcuts"]
+    }
+}
+```
+
 ## Архитектура проекта
 
 <img src="docs/images/diagram.png" width=500>
